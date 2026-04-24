@@ -1,9 +1,116 @@
 import sqlite3
+import json
 import re
 import random
 from datetime import datetime
 
+from django import forms
 from django.contrib.auth.hashers import check_password, make_password
+from django.core.validators import FileExtensionValidator
+from Horarios import obtener_horarios_disponibles
+
+
+HORARIOS_VALIDOS = tuple(horario.nombre for horario in obtener_horarios_disponibles())
+HORARIOS_ORDEN = {nombre: indice for indice, nombre in enumerate(HORARIOS_VALIDOS)}
+
+
+class PeliculaBaseForm(forms.Form):
+    CLASIFICACION_MPA_CHOICES = [
+        ('G', 'G - Audiencias generales'),
+        ('PG', 'PG - Guía parental sugerida'),
+        ('PG-13', 'PG-13 - Menores de 13 con advertencia'),
+        ('R', 'R - Restringida'),
+        ('NC-17', 'NC-17 - Solo adultos'),
+    ]
+
+    nombre = forms.CharField(max_length=120)
+    proveedor = forms.IntegerField(min_value=1)
+    generos = forms.CharField(max_length=120)
+    clasificacion = forms.ChoiceField(choices=CLASIFICACION_MPA_CHOICES)
+    duracion = forms.CharField(max_length=5)
+    descripcion = forms.CharField(max_length=1500)
+    calificacion = forms.FloatField(min_value=0.0, max_value=10.0)
+    fechas_emision = forms.CharField(max_length=1000, required=False)
+    programacion_emision = forms.CharField(max_length=20000, required=False)
+    portada = forms.FileField(
+        required=False,
+        validators=[FileExtensionValidator(allowed_extensions=['png', 'jpg', 'jpeg', 'gif', 'webp'])],
+    )
+
+    def clean_duracion(self):
+        duracion = self.cleaned_data['duracion'].strip()
+        if not re.fullmatch(r"\d{1,2}:[0-5]\d", duracion):
+            raise forms.ValidationError('La duración debe tener formato HH:MM, por ejemplo 02:15.')
+        horas, minutos = duracion.split(':')
+        return f"{int(horas):02d}:{minutos}"
+
+    def clean_generos(self):
+        valor = str(self.cleaned_data['generos']).strip()
+        if not valor:
+            raise forms.ValidationError('Debes seleccionar al menos un género.')
+
+        generos = []
+        vistos = set()
+        for item in valor.replace(';', ',').split(','):
+            genero = item.strip()
+            if not genero:
+                continue
+
+            clave = genero.lower()
+            if clave in vistos:
+                continue
+            vistos.add(clave)
+            generos.append(genero)
+
+        if not generos:
+            raise forms.ValidationError('Debes seleccionar al menos un género.')
+        if len(generos) > 5:
+            raise forms.ValidationError('Solo puedes seleccionar hasta 5 géneros.')
+
+        return ', '.join(generos)
+
+    def clean_calificacion(self):
+        valor_raw = str(self.data.get('calificacion', '')).strip()
+        if not re.fullmatch(r"(?:10(?:\.0)?|[0-9](?:\.[0-9])?)", valor_raw):
+            raise forms.ValidationError('La calificación debe estar entre 0.0 y 10.0 y usar solo un decimal.')
+
+        calificacion = self.cleaned_data['calificacion']
+        if calificacion < 0 or calificacion > 10.0:
+            raise forms.ValidationError('La calificación debe estar entre 0.0 y 10.0.')
+        return calificacion
+
+    def clean_fechas_emision(self):
+        fechas = parsear_fechas_emision(self.cleaned_data['fechas_emision'])
+        return fechas
+
+    def clean_programacion_emision(self):
+        programacion = parsear_programacion_emision(self.cleaned_data['programacion_emision'])
+        return programacion
+
+    def clean(self):
+        cleaned_data = super().clean()
+        programacion = cleaned_data.get('programacion_emision')
+        if not programacion:
+            self.add_error('programacion_emision', 'Debes seleccionar al menos un horario en una fecha de función.')
+            return cleaned_data
+
+        pelicula_id = cleaned_data.get('id')
+        ok, mensaje = validar_programacion_emision(programacion, pelicula_id=pelicula_id)
+        if not ok:
+            self.add_error('programacion_emision', mensaje)
+            return cleaned_data
+
+        cleaned_data['fechas_emision'] = fechas_desde_programacion_emision(programacion)
+        return cleaned_data
+
+
+class PeliculaCreateForm(PeliculaBaseForm):
+    pass
+
+
+class PeliculaEditForm(PeliculaBaseForm):
+    id = forms.IntegerField(min_value=1)
+    eliminar_portada = forms.BooleanField(required=False)
 
 
 def obtener_conexion(row_factory=False):
@@ -350,6 +457,105 @@ def parsear_fechas_emision(valor):
     return fechas
 
 
+def parsear_programacion_emision(valor):
+    if valor is None:
+        return {}
+
+    if isinstance(valor, dict):
+        programacion_raw = valor
+    else:
+        texto = str(valor).strip()
+        if not texto:
+            return {}
+        try:
+            programacion_raw = json.loads(texto)
+        except json.JSONDecodeError:
+            return {}
+
+    programacion = {}
+    for fecha_raw, horarios_raw in programacion_raw.items():
+        fechas = parsear_fechas_emision(fecha_raw)
+        if not fechas:
+            continue
+
+        fecha = fechas[0]
+        if isinstance(horarios_raw, (list, tuple, set)):
+            candidatos = horarios_raw
+        else:
+            candidatos = str(horarios_raw).replace(';', ',').split(',')
+
+        horarios = []
+        vistos = set()
+        for candidato in candidatos:
+            horario = str(candidato).strip()
+            if horario not in HORARIOS_VALIDOS or horario in vistos:
+                continue
+            vistos.add(horario)
+            horarios.append(horario)
+
+        if horarios:
+            programacion[fecha] = sorted(horarios, key=lambda nombre: HORARIOS_ORDEN[nombre])
+
+    return dict(sorted(programacion.items()))
+
+
+def serializar_programacion_emision(valor):
+    return json.dumps(parsear_programacion_emision(valor), ensure_ascii=True, separators=(',', ':'))
+
+
+def fechas_desde_programacion_emision(valor):
+    return list(parsear_programacion_emision(valor).keys())
+
+
+def construir_programacion_base(fechas_emision, programacion_emision=None):
+    programacion = parsear_programacion_emision(programacion_emision)
+    if programacion:
+        return programacion
+
+    return {fecha: [] for fecha in parsear_fechas_emision(fechas_emision)}
+
+
+def obtener_ocupacion_horarios(excluir_pelicula_id=None):
+    ensure_fechas_emision_schema()
+
+    conn = obtener_conexion(row_factory=True)
+    cursor = conn.cursor()
+    cursor.execute('SELECT rowid, Nombre, Programacion_emision FROM PELICULAS')
+    filas = cursor.fetchall()
+    conn.close()
+
+    ocupacion = {}
+    for fila in filas:
+        pelicula_id = fila['rowid']
+        if excluir_pelicula_id is not None and pelicula_id == excluir_pelicula_id:
+            continue
+
+        for fecha, horarios in parsear_programacion_emision(fila['Programacion_emision']).items():
+            ocupacion_fecha = ocupacion.setdefault(fecha, {})
+            for horario in horarios:
+                ocupacion_fecha[horario] = {
+                    'pelicula_id': pelicula_id,
+                    'pelicula_nombre': fila['Nombre'],
+                }
+
+    return ocupacion
+
+
+def validar_programacion_emision(programacion_emision, pelicula_id=None):
+    programacion = parsear_programacion_emision(programacion_emision)
+    if not programacion:
+        return False, 'Debes seleccionar al menos un horario en una fecha de emisión.'
+
+    ocupacion = obtener_ocupacion_horarios(excluir_pelicula_id=pelicula_id)
+    for fecha, horarios in programacion.items():
+        for horario in horarios:
+            conflicto = ocupacion.get(fecha, {}).get(horario)
+            if conflicto:
+                return False, f"El {fecha} en {horario} ya está asignado a {conflicto['pelicula_nombre']}."
+
+    return True, None
+
+
 def serializar_fechas_emision(valor):
     return ','.join(parsear_fechas_emision(valor))
 
@@ -388,6 +594,10 @@ def ensure_fechas_emision_schema():
         cursor.execute("ALTER TABLE PELICULAS ADD COLUMN Fechas_emision TEXT")
         columnas.append('Fechas_emision')
 
+    if 'Programacion_emision' not in columnas:
+        cursor.execute("ALTER TABLE PELICULAS ADD COLUMN Programacion_emision TEXT")
+        columnas.append('Programacion_emision')
+
     cursor.execute(
         """
         UPDATE PELICULAS
@@ -398,9 +608,26 @@ def ensure_fechas_emision_schema():
         """
     )
 
-    cursor.execute("SELECT rowid, Fecha_estreno, Fechas_emision FROM PELICULAS")
+    cursor.execute("SELECT rowid, Fecha_estreno, Fechas_emision, Programacion_emision FROM PELICULAS")
     filas = cursor.fetchall()
-    for rowid, fecha_estreno, fechas_emision in filas:
+    for rowid, fecha_estreno, fechas_emision, programacion_emision in filas:
+        programacion = parsear_programacion_emision(programacion_emision)
+        if programacion:
+            fechas = list(programacion.keys())
+            inicio = fechas[0]
+            fechas_texto = ','.join(fechas)
+            programacion_texto = serializar_programacion_emision(programacion)
+            if (
+                fecha_estreno != inicio
+                or fechas_emision != fechas_texto
+                or (programacion_emision or '') != programacion_texto
+            ):
+                cursor.execute(
+                    "UPDATE PELICULAS SET Fecha_estreno = ?, Fechas_emision = ?, Programacion_emision = ? WHERE rowid = ?",
+                    (inicio, fechas_texto, programacion_texto, rowid),
+                )
+            continue
+
         inicio, _, fechas = obtener_rango_fechas_emision(fechas_emision, fecha_estreno)
         if not fechas:
             continue
@@ -414,6 +641,24 @@ def ensure_fechas_emision_schema():
 
     conn.commit()
     conn.close()
+
+
+def obtener_programacion_pelicula(pelicula_id):
+    ensure_fechas_emision_schema()
+
+    conn = obtener_conexion(row_factory=True)
+    cursor = conn.cursor()
+    cursor.execute(
+        'SELECT Fechas_emision, Programacion_emision FROM PELICULAS WHERE rowid = ?',
+        (pelicula_id,),
+    )
+    fila = cursor.fetchone()
+    conn.close()
+
+    if not fila:
+        return {}
+
+    return construir_programacion_base(fila['Fechas_emision'], fila['Programacion_emision'])
 
 
 def obtener_peliculas_para_main(limit=10):

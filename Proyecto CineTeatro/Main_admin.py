@@ -1,19 +1,25 @@
 import base64
 
-from django.http import HttpResponseBadRequest
+from django.http import HttpResponseBadRequest, JsonResponse
 from django.shortcuts import redirect, render
 from django.utils.datastructures import MultiValueDict
 from django.utils.text import get_valid_filename
 
 from DB import (
+    construir_programacion_base,
     eliminar_portada_por_rowid,
     ensure_fechas_emision_schema,
+    fechas_desde_programacion_emision,
     formatear_fecha_corta,
     obtener_conexion,
+    obtener_ocupacion_horarios,
     obtener_rango_fechas_emision,
-    serializar_fechas_emision,
+    PeliculaCreateForm,
+    PeliculaEditForm,
+    serializar_programacion_emision,
 )
-from django_forms import PeliculaCreateForm, PeliculaEditForm
+from Fechas import calendario
+from Horarios import obtener_horarios_disponibles
 
 
 def obtener_mime(nombre_archivo):
@@ -71,8 +77,51 @@ def _requiere_admin_activo(request):
 def _normalizar_pelicula(fila):
     data = dict(fila)
     data['fechas_emision_resumen'] = data.get('Fechas_emision') or data.get('Fecha_estreno') or ''
+    data['programacion_emision_json'] = serializar_programacion_emision(
+        construir_programacion_base(data.get('Fechas_emision'), data.get('Programacion_emision'))
+    )
     data['portada_src'] = construir_src_portada(data.get('Portada'), data.get('Portada_nombre'))
     return data
+
+
+def _obtener_horarios_contexto():
+    return [
+        {
+            'nombre': horario.nombre,
+            'inicio': horario.inicio,
+            'fin': horario.fin,
+        }
+        for horario in obtener_horarios_disponibles()
+    ]
+
+
+def _obtener_proveedores_contexto(peliculas):
+    proveedores = set()
+    for pelicula in peliculas:
+        valor = str(pelicula.get('Proveedor', '')).strip()
+        if valor:
+            proveedores.add(valor)
+
+    return sorted(proveedores, key=lambda item: int(item) if item.isdigit() else item)
+
+
+def _obtener_generos_contexto(peliculas):
+    generos = set()
+    for pelicula in peliculas:
+        valor = str(pelicula.get('Generos', '')).strip()
+        if not valor:
+            continue
+        for genero in valor.replace(';', ',').split(','):
+            nombre = genero.strip()
+            if nombre:
+                generos.add(nombre)
+
+    return sorted(generos, key=str.lower)
+
+
+def _obtener_fechas_calendario_contexto():
+    fechas = calendario.obtener_fechas_seleccionables()
+    return sorted({fecha.strftime('%Y-%m-%d') for fecha in fechas})
 
 
 def admin(request):
@@ -90,8 +139,27 @@ def admin(request):
         'admin_peliculas.html',
         {
             'peliculas': peliculas_contexto,
+            'horarios': _obtener_horarios_contexto(),
+            'fechas_calendario': _obtener_fechas_calendario_contexto(),
+            'proveedores': _obtener_proveedores_contexto(peliculas_contexto),
+            'generos_disponibles': _obtener_generos_contexto(peliculas_contexto),
             'usuario': request.session['usuario'],
         },
+    )
+
+
+def obtener_disponibilidad_emision(request):
+    if not _requiere_admin_activo(request):
+        return JsonResponse({'ok': False, 'error': 'Acceso no autorizado.'}, status=403)
+
+    pelicula_id_raw = (request.GET.get('pelicula_id') or '').strip()
+    pelicula_id = int(pelicula_id_raw) if pelicula_id_raw.isdigit() else None
+    return JsonResponse(
+        {
+            'ok': True,
+            'horarios': _obtener_horarios_contexto(),
+            'ocupacion': obtener_ocupacion_horarios(excluir_pelicula_id=pelicula_id),
+        }
     )
 
 
@@ -142,9 +210,11 @@ def add_pelicula(request):
         return HttpResponseBadRequest(f"Datos invalidos ({formatear_errores_formulario(form)})")
 
     datos = form.cleaned_data
-    fechas_emision = datos['fechas_emision']
-    fecha_estreno = fechas_emision[0]
-    fechas_emision_texto = serializar_fechas_emision(fechas_emision)
+    programacion_emision = datos.get('programacion_emision') or {}
+    fechas_emision = fechas_desde_programacion_emision(programacion_emision)
+    fecha_estreno = fechas_emision[0] if fechas_emision else None
+    fechas_emision_texto = ','.join(fechas_emision)
+    programacion_emision_texto = serializar_programacion_emision(programacion_emision) if programacion_emision else ''
     portada_archivo = datos.get('portada')
     portada_bytes = None
     portada_nombre = None
@@ -156,7 +226,7 @@ def add_pelicula(request):
     ensure_fechas_emision_schema()
     conn = get_db_connection()
     conn.execute(
-        'INSERT INTO PELICULAS (Nombre, Proveedor, Generos, Clasificacion, Duracion, Descripcion, Calificacion, Fecha_estreno, Fechas_emision, Portada, Portada_nombre) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO PELICULAS (Nombre, Proveedor, Generos, Clasificacion, Duracion, Descripcion, Calificacion, Fecha_estreno, Fechas_emision, Programacion_emision, Portada, Portada_nombre) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         (
             datos['nombre'],
             datos['proveedor'],
@@ -167,6 +237,7 @@ def add_pelicula(request):
             datos['calificacion'],
             fecha_estreno,
             fechas_emision_texto,
+            programacion_emision_texto,
             portada_bytes,
             portada_nombre,
         ),
@@ -188,9 +259,11 @@ def edit_pelicula(request):
 
     datos = form.cleaned_data
     pelicula_id = datos['id']
-    fechas_emision = datos['fechas_emision']
-    fecha_estreno = fechas_emision[0]
-    fechas_emision_texto = serializar_fechas_emision(fechas_emision)
+    programacion_emision = datos.get('programacion_emision') or {}
+    fechas_emision = fechas_desde_programacion_emision(programacion_emision)
+    fecha_estreno = fechas_emision[0] if fechas_emision else None
+    fechas_emision_texto = ','.join(fechas_emision)
+    programacion_emision_texto = serializar_programacion_emision(programacion_emision) if programacion_emision else ''
     portada_archivo = datos.get('portada')
     eliminar_portada = bool(datos.get('eliminar_portada'))
     portada_bytes = None
@@ -202,9 +275,19 @@ def edit_pelicula(request):
 
     ensure_fechas_emision_schema()
     conn = get_db_connection()
+    if not programacion_emision:
+        fila_actual = conn.execute(
+            'SELECT Fecha_estreno, Fechas_emision, Programacion_emision FROM PELICULAS WHERE rowid=?',
+            (pelicula_id,),
+        ).fetchone()
+        if fila_actual:
+            fecha_estreno = fila_actual['Fecha_estreno']
+            fechas_emision_texto = fila_actual['Fechas_emision']
+            programacion_emision_texto = fila_actual['Programacion_emision']
+
     if eliminar_portada:
         conn.execute(
-            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=? WHERE rowid=?',
+            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=? WHERE rowid=?',
             (
                 datos['nombre'],
                 datos['proveedor'],
@@ -215,6 +298,7 @@ def edit_pelicula(request):
                 datos['calificacion'],
                 fecha_estreno,
                 fechas_emision_texto,
+                programacion_emision_texto,
                 pelicula_id,
             ),
         )
@@ -226,7 +310,7 @@ def edit_pelicula(request):
 
     if portada_bytes is not None:
         conn.execute(
-            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Portada=?, Portada_nombre=? WHERE rowid=?',
+            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=?, Portada_nombre=? WHERE rowid=?',
             (
                 datos['nombre'],
                 datos['proveedor'],
@@ -237,6 +321,7 @@ def edit_pelicula(request):
                 datos['calificacion'],
                 fecha_estreno,
                 fechas_emision_texto,
+                programacion_emision_texto,
                 portada_bytes,
                 portada_nombre,
                 pelicula_id,
@@ -244,7 +329,7 @@ def edit_pelicula(request):
         )
     else:
         conn.execute(
-            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Portada=CASE WHEN Portada = "" THEN NULL ELSE Portada END WHERE rowid=?',
+            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=CASE WHEN Portada = "" THEN NULL ELSE Portada END WHERE rowid=?',
             (
                 datos['nombre'],
                 datos['proveedor'],
@@ -255,6 +340,7 @@ def edit_pelicula(request):
                 datos['calificacion'],
                 fecha_estreno,
                 fechas_emision_texto,
+                programacion_emision_texto,
                 pelicula_id,
             ),
         )

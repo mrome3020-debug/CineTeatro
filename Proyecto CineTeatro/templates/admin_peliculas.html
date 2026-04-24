@@ -129,6 +129,62 @@
             color: #0f2d43;
         }
 
+        .generos-dropdown {
+            border: 1px solid #b7d6e8;
+            border-radius: 12px;
+            background: #ffffff;
+            overflow: hidden;
+        }
+
+        .generos-dropdown summary {
+            list-style: none;
+            cursor: pointer;
+            padding: 10px 12px;
+            font-weight: 600;
+            color: #0f2d43;
+        }
+
+        .generos-dropdown summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .generos-opciones {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 8px;
+            padding: 0 12px 12px;
+        }
+
+        .genero-opcion {
+            margin: 0;
+            padding: 8px 10px;
+            border-radius: 10px;
+            border: 1px solid #9fcbe3;
+            background: #f4fbff;
+            color: #0f2d43;
+            font-size: 13px;
+            text-align: left;
+        }
+
+        .genero-opcion.seleccionado {
+            border-color: #0f4c78;
+            background: #0f6aa8;
+            color: #ffffff;
+        }
+
+        .generos-resumen {
+            margin-top: 8px;
+            font-size: 13px;
+            color: #4b677c;
+        }
+
+        .generos-error {
+            margin-top: 6px;
+            font-size: 13px;
+            color: #b42318;
+            display: none;
+        }
+
         .pelicula-actions-panel {
             display: none;
             align-items: center;
@@ -273,6 +329,355 @@
             background: #f6fbff;
         }
 
+        .fecha-ayuda {
+            margin: 8px 0 0;
+            font-size: 13px;
+            color: #4b677c;
+        }
+
+        .fecha-emision-card {
+            display: grid;
+            gap: 12px;
+            padding: 12px;
+            border-radius: 16px;
+            border: 1px solid #8cc7e7;
+            background: #eef8fe;
+        }
+
+        .fecha-emision-card.bloqueada {
+            border-color: #3d4750;
+            background: #4a535b;
+            color: #f3f5f7;
+        }
+
+        .fecha-emision-card.pendiente {
+            border-color: #e3b24d;
+            background: #fff7e2;
+        }
+
+        .fecha-emision-card-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .fecha-emision-card-acciones {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .fecha-emision-card-head strong {
+            font-size: 15px;
+        }
+
+        .fecha-emision-card-head button {
+            margin: 0;
+            padding: 6px 10px;
+            border-radius: 8px;
+            border: 1px solid #8cc7e7;
+            background: #d9eefb;
+            color: #0f2d43;
+        }
+
+        .fecha-emision-card.bloqueada .fecha-emision-card-head button {
+            border-color: #69737b;
+            background: #5b656d;
+            color: #f3f5f7;
+        }
+
+        .horarios-seleccionados {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .horario-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 10px;
+            border-radius: 12px;
+            border: 1px solid #8cc7e7;
+            background: #dff2fd;
+            color: #0f2d43;
+        }
+
+        .horario-chip button {
+            margin: 0;
+            padding: 4px 7px;
+            border-radius: 8px;
+            border: 1px solid #8cc7e7;
+            background: #ffffff;
+            color: #0f2d43;
+        }
+
+        .fecha-emision-nota {
+            margin: 0;
+            font-size: 13px;
+            color: #7c5d11;
+        }
+
+        .fecha-emision-card.bloqueada .fecha-emision-nota {
+            color: #f5e7ad;
+        }
+
+        .horarios-disponibles {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 8px;
+        }
+
+        .horario-toggle {
+            margin: 0;
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid #8cc7e7;
+            background: #ffffff;
+            color: #0f2d43;
+            text-align: left;
+        }
+
+        .horario-toggle small {
+            display: block;
+            margin-top: 4px;
+            color: #5f7b8f;
+        }
+
+        .horario-toggle.activo {
+            border-color: #0f2d43;
+            background: #0f2d43;
+            color: #ffffff;
+        }
+
+        .horario-toggle.activo small {
+            color: #d6edf9;
+        }
+
+        .horario-toggle.ocupado,
+        .horario-toggle:disabled {
+            border-color: #3d4750;
+            background: #4a535b;
+            color: #e4e8eb;
+            cursor: not-allowed;
+        }
+
+        .horario-toggle.ocupado small,
+        .horario-toggle:disabled small {
+            color: #c9d0d5;
+        }
+
+        .fecha-bloqueada-lista {
+            display: grid;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .fecha-bloqueada-card {
+            padding: 10px 12px;
+            border-radius: 14px;
+            border: 1px solid #3d4750;
+            background: #4a535b;
+            color: #f3f5f7;
+        }
+
+        .fecha-bloqueada-card strong {
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        /* ── Picker de rango de fechas ─────────────────────── */
+        .fecha-rango-picker {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .fecha-rango-picker input[type="text"] {
+            flex: 1;
+            cursor: pointer;
+            background: #f6fbff;
+        }
+
+        .btn-abrir-cal {
+            margin: 0;
+            padding: 9px 14px;
+            background: linear-gradient(135deg, #4caadf, #2e7cad);
+            color: #ffffff;
+            border-radius: 12px;
+            border: none;
+            white-space: nowrap;
+            font-size: 17px;
+            line-height: 1;
+        }
+
+        .btn-abrir-cal:hover {
+            background: linear-gradient(135deg, #3d9ed3, #25709f);
+        }
+
+        /* ── Overlay del popup de calendario ───────────────── */
+        #calendario-popup-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(10, 30, 46, 0.55);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1100;
+        }
+
+        #calendario-popup {
+            background: #ffffff;
+            border-radius: 20px;
+            border: 1px solid #bfd9ea;
+            box-shadow: 0 20px 50px rgba(15, 45, 67, 0.22);
+            padding: 24px;
+            width: min(380px, 96vw);
+            display: grid;
+            gap: 16px;
+        }
+
+        #calendario-popup-nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        #calendario-popup-nav button {
+            margin: 0;
+            padding: 7px 13px;
+            border-radius: 10px;
+            background: #e0f1fa;
+            color: #0f2d43;
+            border: 1px solid #99ccec;
+            font-size: 18px;
+            line-height: 1;
+        }
+
+        #calendario-popup-nav button:hover {
+            background: #c7e5f7;
+        }
+
+        #calendario-popup-mes-label {
+            font-weight: 700;
+            font-size: 16px;
+            color: #0f2d43;
+            text-align: center;
+            flex: 1;
+        }
+
+        #calendario-popup-info {
+            font-size: 13px;
+            color: #4b677c;
+            background: #f0f8ff;
+            border-radius: 10px;
+            padding: 8px 12px;
+            display: none;
+        }
+
+        #calendario-popup-info.visible {
+            display: block;
+        }
+
+        .cal-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+        }
+
+        .cal-grid-header {
+            font-size: 11px;
+            font-weight: 700;
+            color: #0f2d43;
+            text-align: center;
+            padding: 4px 0;
+            text-transform: uppercase;
+        }
+
+        .cal-dia {
+            aspect-ratio: 1;
+            border-radius: 10px;
+            border: 1px solid transparent;
+            background: transparent;
+            font-size: 14px;
+            color: #0f2d43;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            margin: 0;
+            transition: background 0.15s, border-color 0.15s;
+        }
+
+        .cal-dia:hover:not(:disabled) {
+            background: #d9eefb;
+            border-color: #8cc7e7;
+        }
+
+        .cal-dia.disponible {
+            font-weight: 600;
+        }
+
+        .cal-dia.no-disponible {
+            color: #c0d4e0;
+            cursor: default;
+            pointer-events: none;
+        }
+
+        .cal-dia.es-estreno {
+            background: #0f2d43;
+            color: #ffffff;
+            border-color: #0f2d43;
+            font-weight: 700;
+        }
+
+        .cal-dia.en-rango {
+            background: #d0ebf9;
+            border-color: #7bbce0;
+        }
+
+        .cal-dia.vacio {
+            border: none;
+            cursor: default;
+            pointer-events: none;
+        }
+
+        #calendario-popup-actions {
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        #calendario-popup-actions button {
+            margin: 0;
+            padding: 9px 18px;
+            border-radius: 12px;
+            background: #f0f4f7;
+            color: #0f2d43;
+            border: 1px solid #c5d9e7;
+        }
+
+        /* ── Ampliar modales de add/edit y añadir overlay oscuro ── */
+        #form-dim-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(10, 30, 46, 0.52);
+            z-index: 1000;
+        }
+
+        #add-section,
+        #edit-section {
+            max-width: 780px;
+            width: min(780px, 96vw);
+            max-height: 90vh;
+        }
+
         @media (max-width: 760px) {
             .admin-shell {
                 padding: 18px 12px 28px;
@@ -322,6 +727,24 @@
                 flex-direction: column;
                 align-items: flex-start;
             }
+
+            .fecha-emision-card-head {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .fecha-emision-card-acciones {
+                width: 100%;
+                justify-content: stretch;
+            }
+
+            .fecha-emision-card-head button {
+                width: 100%;
+            }
+
+            .horarios-disponibles {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 {% endblock %}
@@ -368,6 +791,7 @@
                     data-descripcion="{{ pelicula.Descripcion }}"
                     data-calificacion="{{ pelicula.Calificacion }}"
                     data-fechas-emision="{{ pelicula.fechas_emision_resumen }}"
+                    data-programacion-emision="{{ pelicula.programacion_emision_json|escape }}"
                 >
                     <div class="pelicula-poster">
                         {% if pelicula.portada_src %}
@@ -411,11 +835,26 @@
             </div>
             <div class="form-group">
                 <label for="add-proveedor">Proveedor:</label>
-                <input type="number" id="add-proveedor" name="proveedor" required>
+                <select id="add-proveedor" name="proveedor" required>
+                    <option value="">Seleccione un proveedor</option>
+                    {% for proveedor in proveedores %}
+                    <option value="{{ proveedor }}">{{ proveedor }}</option>
+                    {% endfor %}
+                </select>
             </div>
             <div class="form-group">
                 <label for="add-generos">Géneros:</label>
-                <input type="text" id="add-generos" name="generos" required>
+                <input type="hidden" id="add-generos" name="generos" required>
+                <details class="generos-dropdown" id="add-generos-dropdown">
+                    <summary id="add-generos-summary">Selecciona hasta 5 géneros</summary>
+                    <div class="generos-opciones" id="add-generos-opciones">
+                        {% for genero in generos_disponibles %}
+                        <button type="button" class="genero-opcion" data-prefix="add" data-genero="{{ genero|escape }}">{{ genero }}</button>
+                        {% endfor %}
+                    </div>
+                </details>
+                <div class="generos-resumen" id="add-generos-resumen">Sin géneros seleccionados.</div>
+                <div class="generos-error" id="add-generos-error">Solo puedes seleccionar hasta 5 géneros.</div>
             </div>
             <div class="form-group">
                 <label for="add-clasificacion">Clasificación:</label>
@@ -438,36 +877,30 @@
             </div>
             <div class="form-group">
                 <label for="add-calificacion">Calificación:</label>
-                <input type="number" step="0.1" id="add-calificacion" name="calificacion" required>
+                <input type="text" id="add-calificacion" name="calificacion" inputmode="decimal" pattern="^(10(\.0)?|[0-9](\.[0-9])?)$" title="Ingresa un número entre 0.0 y 10.0 con un solo decimal" required>
             </div>
             <div class="form-group">
-                <label for="add-fecha-selector">Fechas de Emisión:</label>
-                <div class="fecha-selector">
-                    <input type="date" id="add-fecha-selector">
-                    <button type="button" onclick="agregarFecha('add')">Agregar fecha</button>
+                <label>Fecha de Estreno:</label>
+                <div class="fecha-rango-picker">
+                    <input type="text" id="add-input-estreno" readonly placeholder="Sin seleccionar" onclick="abrirCalendarioPopup('add','estreno')">
+                    <button type="button" class="btn-abrir-cal" onclick="abrirCalendarioPopup('add','estreno')" title="Abrir calendario">&#128197;</button>
                 </div>
-                <div class="fecha-rango">
-                    <div>
-                        <label for="add-fecha-rango-desde">Desde</label>
-                        <input type="date" id="add-fecha-rango-desde">
-                    </div>
-                    <div>
-                        <label for="add-fecha-rango-hasta">Hasta</label>
-                        <input type="date" id="add-fecha-rango-hasta">
-                    </div>
-                    <button type="button" onclick="agregarRangoFechas('add')">Agregar rango</button>
+            </div>
+            <div class="form-group">
+                <label>Último día de emisión:</label>
+                <div class="fecha-rango-picker">
+                    <input type="text" id="add-input-fin" readonly placeholder="Sin seleccionar" onclick="abrirCalendarioPopup('add','fin')">
+                    <button type="button" class="btn-abrir-cal" onclick="abrirCalendarioPopup('add','fin')" title="Abrir calendario">&#128197;</button>
                 </div>
-                <input type="hidden" id="add-fechas-emision" name="fechas_emision">
+            </div>
+            <div class="form-group">
+                <label>Programación de funciones:</label>
+                <p class="fecha-ayuda">Selecciona la Fecha de Estreno y el Último día. Todas las fechas disponibles en ese rango se agregarán automáticamente. Luego elige los horarios para cada día.</p>
                 <div class="fecha-lista" id="add-fechas-lista"></div>
+                <div class="fecha-bloqueada-lista" id="add-fechas-bloqueadas"></div>
             </div>
-            <div class="form-group">
-                <label for="add-fecha-desde">En emisión desde:</label>
-                <input class="fecha-resumen" type="text" id="add-fecha-desde" readonly>
-            </div>
-            <div class="form-group">
-                <label for="add-fecha-hasta">Hasta:</label>
-                <input class="fecha-resumen" type="text" id="add-fecha-hasta" readonly>
-            </div>
+            <input type="hidden" id="add-fechas-emision" name="fechas_emision" value="">
+            <input type="hidden" id="add-programacion-emision" name="programacion_emision" value="">
             <div class="form-group">
                 <label for="add-portada">Portada (archivo de imagen):</label>
                 <input type="file" id="add-portada" name="portada" accept=".png,.jpg,.jpeg,.gif,.webp,image/*">
@@ -490,11 +923,26 @@
             </div>
             <div class="form-group">
                 <label for="edit-proveedor">Proveedor:</label>
-                <input type="number" id="edit-proveedor" name="proveedor" required>
+                <select id="edit-proveedor" name="proveedor" required>
+                    <option value="">Seleccione un proveedor</option>
+                    {% for proveedor in proveedores %}
+                    <option value="{{ proveedor }}">{{ proveedor }}</option>
+                    {% endfor %}
+                </select>
             </div>
             <div class="form-group">
                 <label for="edit-generos">Géneros:</label>
-                <input type="text" id="edit-generos" name="generos" required>
+                <input type="hidden" id="edit-generos" name="generos" required>
+                <details class="generos-dropdown" id="edit-generos-dropdown">
+                    <summary id="edit-generos-summary">Selecciona hasta 5 géneros</summary>
+                    <div class="generos-opciones" id="edit-generos-opciones">
+                        {% for genero in generos_disponibles %}
+                        <button type="button" class="genero-opcion" data-prefix="edit" data-genero="{{ genero|escape }}">{{ genero }}</button>
+                        {% endfor %}
+                    </div>
+                </details>
+                <div class="generos-resumen" id="edit-generos-resumen">Sin géneros seleccionados.</div>
+                <div class="generos-error" id="edit-generos-error">Solo puedes seleccionar hasta 5 géneros.</div>
             </div>
             <div class="form-group">
                 <label for="edit-clasificacion">Clasificación:</label>
@@ -517,36 +965,30 @@
             </div>
             <div class="form-group">
                 <label for="edit-calificacion">Calificación:</label>
-                <input type="number" step="0.1" id="edit-calificacion" name="calificacion" required>
+                <input type="text" id="edit-calificacion" name="calificacion" inputmode="decimal" pattern="^(10(\.0)?|[0-9](\.[0-9])?)$" title="Ingresa un número entre 0.0 y 10.0 con un solo decimal" required>
             </div>
             <div class="form-group">
-                <label for="edit-fecha-selector">Fechas de Emisión:</label>
-                <div class="fecha-selector">
-                    <input type="date" id="edit-fecha-selector">
-                    <button type="button" onclick="agregarFecha('edit')">Agregar fecha</button>
+                <label>Fecha de Estreno:</label>
+                <div class="fecha-rango-picker">
+                    <input type="text" id="edit-input-estreno" readonly placeholder="Sin seleccionar" onclick="abrirCalendarioPopup('edit','estreno')">
+                    <button type="button" class="btn-abrir-cal" onclick="abrirCalendarioPopup('edit','estreno')" title="Abrir calendario">&#128197;</button>
                 </div>
-                <div class="fecha-rango">
-                    <div>
-                        <label for="edit-fecha-rango-desde">Desde</label>
-                        <input type="date" id="edit-fecha-rango-desde">
-                    </div>
-                    <div>
-                        <label for="edit-fecha-rango-hasta">Hasta</label>
-                        <input type="date" id="edit-fecha-rango-hasta">
-                    </div>
-                    <button type="button" onclick="agregarRangoFechas('edit')">Agregar rango</button>
+            </div>
+            <div class="form-group">
+                <label>Último día de emisión:</label>
+                <div class="fecha-rango-picker">
+                    <input type="text" id="edit-input-fin" readonly placeholder="Sin seleccionar" onclick="abrirCalendarioPopup('edit','fin')">
+                    <button type="button" class="btn-abrir-cal" onclick="abrirCalendarioPopup('edit','fin')" title="Abrir calendario">&#128197;</button>
                 </div>
-                <input type="hidden" id="edit-fechas-emision" name="fechas_emision">
+            </div>
+            <div class="form-group">
+                <label>Programación de funciones:</label>
+                <p class="fecha-ayuda">Selecciona la Fecha de Estreno y el Último día. Todas las fechas disponibles en ese rango se agregarán automáticamente. Luego elige los horarios para cada día.</p>
                 <div class="fecha-lista" id="edit-fechas-lista"></div>
+                <div class="fecha-bloqueada-lista" id="edit-fechas-bloqueadas"></div>
             </div>
-            <div class="form-group">
-                <label for="edit-fecha-desde">En emisión desde:</label>
-                <input class="fecha-resumen" type="text" id="edit-fecha-desde" readonly>
-            </div>
-            <div class="form-group">
-                <label for="edit-fecha-hasta">Hasta:</label>
-                <input class="fecha-resumen" type="text" id="edit-fecha-hasta" readonly>
-            </div>
+            <input type="hidden" id="edit-fechas-emision" name="fechas_emision" value="">
+            <input type="hidden" id="edit-programacion-emision" name="programacion_emision" value="">
             <div class="form-group">
                 <label for="edit-portada">Portada (archivo de imagen):</label>
                 <input type="file" id="edit-portada" name="portada" accept=".png,.jpg,.jpeg,.gif,.webp,image/*">
@@ -562,6 +1004,25 @@
                 <button type="button" class="cancel" onclick="hideSection('edit')">Cancelar</button>
             </div>
         </form>
+    </div>
+
+    <!-- Overlay oscuro para modales de formulario -->
+    <div id="form-dim-overlay" onclick="cerrarFormularioActivo()"></div>
+
+    <!-- ══ Popup de calendario (rango de emisión) ══ -->
+    <div id="calendario-popup-overlay" style="display:none;" onclick="if(event.target===this)cerrarCalendarioPopup()">
+        <div id="calendario-popup">
+            <div id="calendario-popup-nav">
+                <button type="button" onclick="navMesPopup(-1)">&#8249;</button>
+                <span id="calendario-popup-mes-label"></span>
+                <button type="button" onclick="navMesPopup(1)">&#8250;</button>
+            </div>
+            <div id="calendario-popup-info"></div>
+            <div id="calendario-popup-grid"></div>
+            <div id="calendario-popup-actions">
+                <button type="button" onclick="cerrarCalendarioPopup()">Cancelar</button>
+            </div>
+        </div>
     </div>
 
     <div class="section" id="delete-section">
@@ -581,183 +1042,778 @@
 
 {% block scripts %}
     <script>
+        const horariosDisponibles = [
+            {% for horario in horarios %}
+            {
+                nombre: '{{ horario.nombre|escapejs }}',
+                inicio: '{{ horario.inicio|escapejs }}',
+                fin: '{{ horario.fin|escapejs }}',
+            }{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        ];
+
+        const ordenHorarios = new Map(horariosDisponibles.map((horario, indice) => [horario.nombre, indice]));
+
+        const fechasCalendarioDisponibles = [
+            {% for fecha in fechas_calendario %}'{{ fecha }}'{% if not forloop.last %}, {% endif %}{% endfor %}
+        ];
+
+        const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+        const DIAS_ES = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+
+        const estadoRango = {
+            add: { estreno: null, fin: null },
+            edit: { estreno: null, fin: null },
+        };
+
+        let _popupCtx = null; // { prefix, tipo, mesOffset }
+
+        function abrirCalendarioPopup(prefix, tipo) {
+            _popupCtx = { prefix, tipo, mesOffset: 0 };
+            renderizarCalendarioPopup();
+            document.getElementById('calendario-popup-overlay').style.display = 'flex';
+        }
+
+        function cerrarCalendarioPopup() {
+            document.getElementById('calendario-popup-overlay').style.display = 'none';
+            _popupCtx = null;
+        }
+
+        function navMesPopup(delta) {
+            if (!_popupCtx) {
+                return;
+            }
+            const nuevo = _popupCtx.mesOffset + delta;
+            if (nuevo < 0 || nuevo > 1) {
+                return;
+            }
+            _popupCtx.mesOffset = nuevo;
+            renderizarCalendarioPopup();
+        }
+
+        function renderizarCalendarioPopup() {
+            if (!_popupCtx) {
+                return;
+            }
+            const { prefix, tipo, mesOffset } = _popupCtx;
+            const rango = estadoRango[prefix];
+
+            const hoy = new Date();
+            const fechaBase = new Date(hoy.getFullYear(), hoy.getMonth() + mesOffset, 1);
+            const añoMostrar = fechaBase.getFullYear();
+            const mesMostrar = fechaBase.getMonth();
+
+            document.getElementById('calendario-popup-nav').querySelector('button:first-child').disabled = mesOffset <= 0;
+            document.getElementById('calendario-popup-nav').querySelector('button:last-child').disabled = mesOffset >= 1;
+            document.getElementById('calendario-popup-mes-label').textContent = `${MESES_ES[mesMostrar]} ${añoMostrar}`;
+
+            const info = document.getElementById('calendario-popup-info');
+            if (tipo === 'fin' && rango.estreno) {
+                const [y, m, d] = rango.estreno.split('-');
+                info.textContent = `Fecha de Estreno seleccionada: ${d}/${m}/${y}. El rango comenzará desde ese día.`;
+                info.classList.add('visible');
+            } else {
+                info.classList.remove('visible');
+            }
+
+            const grid = document.getElementById('calendario-popup-grid');
+            grid.innerHTML = '';
+            grid.className = 'cal-grid';
+
+            DIAS_ES.forEach((dia) => {
+                const th = document.createElement('div');
+                th.className = 'cal-grid-header';
+                th.textContent = dia;
+                grid.appendChild(th);
+            });
+
+            const diasEnMes = new Date(añoMostrar, mesMostrar + 1, 0).getDate();
+            const primerDiaSemana = new Date(añoMostrar, mesMostrar, 1).getDay();
+
+            for (let i = 0; i < primerDiaSemana; i++) {
+                const vacio = document.createElement('div');
+                vacio.className = 'cal-dia vacio';
+                grid.appendChild(vacio);
+            }
+
+            for (let dia = 1; dia <= diasEnMes; dia++) {
+                const fechaStr = `${añoMostrar}-${String(mesMostrar + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'cal-dia';
+                btn.textContent = String(dia);
+
+                const disponible = fechasCalendarioDisponibles.includes(fechaStr);
+                const minFecha = tipo === 'fin' ? rango.estreno : null;
+                const deshabilitado = !disponible || (minFecha !== null && fechaStr < minFecha);
+
+                if (deshabilitado) {
+                    btn.classList.add('no-disponible');
+                    btn.disabled = true;
+                } else {
+                    btn.classList.add('disponible');
+                    if (rango.estreno === fechaStr) {
+                        btn.classList.add('es-estreno');
+                    }
+                    if (rango.estreno && rango.fin && fechaStr >= rango.estreno && fechaStr <= rango.fin) {
+                        btn.classList.add('en-rango');
+                    }
+                    btn.addEventListener('click', () => seleccionarFechaPopup(fechaStr));
+                }
+
+                grid.appendChild(btn);
+            }
+        }
+
+        function actualizarInputFechaVisible(prefix, tipo) {
+            const rango = estadoRango[prefix];
+            const val = tipo === 'estreno' ? rango.estreno : rango.fin;
+            const inputId = tipo === 'estreno' ? `${prefix}-input-estreno` : `${prefix}-input-fin`;
+            const input = document.getElementById(inputId);
+            if (!input) {
+                return;
+            }
+            if (val) {
+                const [y, m, d] = val.split('-');
+                input.value = `${d}/${m}/${y}`;
+            } else {
+                input.value = '';
+            }
+        }
+
+        async function seleccionarFechaPopup(fecha) {
+            if (!_popupCtx) {
+                return;
+            }
+            const { prefix, tipo } = _popupCtx;
+            const rango = estadoRango[prefix];
+
+            if (tipo === 'estreno') {
+                rango.estreno = fecha;
+                if (rango.fin && rango.fin < fecha) {
+                    rango.fin = null;
+                    actualizarInputFechaVisible(prefix, 'fin');
+                }
+                actualizarInputFechaVisible(prefix, 'estreno');
+            } else {
+                rango.fin = fecha;
+                actualizarInputFechaVisible(prefix, 'fin');
+            }
+
+            cerrarCalendarioPopup();
+
+            if (rango.estreno && rango.fin) {
+                await aplicarRangoFechas(prefix);
+            }
+        }
+
+        async function aplicarRangoFechas(prefix) {
+            const rango = estadoRango[prefix];
+            if (!rango.estreno || !rango.fin) {
+                return;
+            }
+
+            const fechasEnRango = fechasCalendarioDisponibles.filter((f) => f >= rango.estreno && f <= rango.fin);
+            if (!fechasEnRango.length) {
+                return;
+            }
+
+            await asegurarDisponibilidadProgramacion(prefix);
+
+            const estado = estadoProgramacion[prefix];
+            fechasEnRango.forEach((fecha) => {
+                if (!tieneHorarioLibre(prefix, fecha)) {
+                    estado.fechasBloqueadas.add(fecha);
+                    return;
+                }
+                estado.fechasBloqueadas.delete(fecha);
+                if (!estado.fechasSeleccionadas.includes(fecha)) {
+                    estado.fechasSeleccionadas.push(fecha);
+                }
+                if (!Array.isArray(estado.programacion[fecha])) {
+                    estado.programacion[fecha] = [];
+                }
+            });
+
+            renderizarFechasProgramacion(prefix);
+        }
+
+        const estadoGeneros = {
+            add: [],
+            edit: [],
+        };
+
+        const estadoProgramacion = {
+            add: {
+                peliculaId: null,
+                fechasSeleccionadas: [],
+                programacion: {},
+                ocupacion: {},
+                fechasBloqueadas: new Set(),
+            },
+            edit: {
+                peliculaId: null,
+                fechasSeleccionadas: [],
+                programacion: {},
+                ocupacion: {},
+                fechasBloqueadas: new Set(),
+            },
+        };
+
         function normalizarFechas(value) {
             const fechas = [];
             const vistas = new Set();
 
-            (value || '').split(',').map((item) => item.trim()).filter(Boolean).forEach((fecha) => {
-                if (!vistas.has(fecha)) {
-                    vistas.add(fecha);
-                    fechas.push(fecha);
+            (value || '').replace(/;/g, ',').split(',').forEach((item) => {
+                const fecha = String(item).trim();
+                if (!fecha || vistas.has(fecha)) {
+                    return;
+                }
+                vistas.add(fecha);
+                fechas.push(fecha);
+            });
+
+            return fechas.sort();
+        }
+
+        function normalizarHorarios(value) {
+            const candidatos = Array.isArray(value) ? value : [];
+            const horarios = [];
+            const vistos = new Set();
+
+            candidatos.forEach((horario) => {
+                const nombre = String(horario).trim();
+                if (!ordenHorarios.has(nombre) || vistos.has(nombre)) {
+                    return;
+                }
+                vistos.add(nombre);
+                horarios.push(nombre);
+            });
+
+            return horarios.sort((a, b) => ordenHorarios.get(a) - ordenHorarios.get(b));
+        }
+
+        function normalizarProgramacion(value) {
+            const programacion = {};
+            let raw = {};
+
+            try {
+                raw = value && typeof value === 'object' ? value : JSON.parse(value || '{}');
+            } catch (error) {
+                raw = {};
+            }
+
+            Object.entries(raw).forEach(([fecha, horarios]) => {
+                const fechaNormalizada = normalizarFechas(fecha)[0];
+                if (!fechaNormalizada) {
+                    return;
+                }
+                const lista = normalizarHorarios(horarios);
+                if (lista.length) {
+                    programacion[fechaNormalizada] = lista;
                 }
             });
 
-            return fechas;
+            return Object.fromEntries(Object.entries(programacion).sort(([a], [b]) => a.localeCompare(b)));
         }
 
         function formatearFechaVisible(value) {
             if (!value) {
                 return '';
             }
-
-            const [year, month, day] = value.split('-');
+            const [year, month, day] = String(value).split('-');
             if (!year || !month || !day) {
                 return value;
             }
-
-            return `${day}/${month}/${year.slice(-2)}`;
+            return `${day}/${month}/${year}`;
         }
 
-        function guardarFechas(prefix, fechas) {
-            document.getElementById(`${prefix}-fechas-emision`).value = normalizarFechas(fechas.join(',')).join(',');
-            renderizarFechas(prefix);
+        function obtenerEtiquetaHorario(nombreHorario) {
+            const horario = horariosDisponibles.find((item) => item.nombre === nombreHorario);
+            if (!horario) {
+                return nombreHorario;
+            }
+            return `${horario.nombre} (${horario.inicio} - ${horario.fin})`;
         }
 
-        function renderizarFechas(prefix) {
-            const hidden = document.getElementById(`${prefix}-fechas-emision`);
-            const fechas = normalizarFechas(hidden.value);
+        function obtenerClaveBorrador(prefix) {
+            const estado = estadoProgramacion[prefix];
+            if (prefix === 'edit' && estado.peliculaId) {
+                return `admin_programacion_${prefix}_${estado.peliculaId}`;
+            }
+            return `admin_programacion_${prefix}`;
+        }
+
+        function guardarBorradorProgramacion(prefix) {
+            const estado = estadoProgramacion[prefix];
+            const payload = {
+                peliculaId: estado.peliculaId,
+                fechasSeleccionadas: estado.fechasSeleccionadas,
+                programacion: estado.programacion,
+            };
+            localStorage.setItem(obtenerClaveBorrador(prefix), JSON.stringify(payload));
+        }
+
+        function cargarBorradorProgramacion(prefix) {
+            const raw = localStorage.getItem(obtenerClaveBorrador(prefix));
+            if (!raw) {
+                return null;
+            }
+            try {
+                return JSON.parse(raw);
+            } catch (error) {
+                return null;
+            }
+        }
+
+        function sincronizarCamposProgramacion(prefix) {
+            const estado = estadoProgramacion[prefix];
+            const serializable = {};
+            const fechas = [];
+
+            Object.entries(estado.programacion)
+                .sort(([a], [b]) => a.localeCompare(b))
+                .forEach(([fecha, horarios]) => {
+                    const lista = normalizarHorarios(horarios);
+                    if (lista.length) {
+                        serializable[fecha] = lista;
+                        fechas.push(fecha);
+                    }
+                });
+
+            document.getElementById(`${prefix}-fechas-emision`).value = fechas.join(',');
+            document.getElementById(`${prefix}-programacion-emision`).value = JSON.stringify(serializable);
+            guardarBorradorProgramacion(prefix);
+        }
+
+        function tieneHorarioLibre(prefix, fecha) {
+            const estado = estadoProgramacion[prefix];
+            const ocupacionFecha = estado.ocupacion[fecha] || {};
+            const propios = normalizarHorarios(estado.programacion[fecha] || []);
+
+            return horariosDisponibles.some((horario) => {
+                if (propios.includes(horario.nombre)) {
+                    return true;
+                }
+                return !Boolean(ocupacionFecha[horario.nombre]);
+            });
+        }
+
+        function renderizarFechasProgramacion(prefix) {
+            const estado = estadoProgramacion[prefix];
             const lista = document.getElementById(`${prefix}-fechas-lista`);
-            const desde = document.getElementById(`${prefix}-fecha-desde`);
-            const hasta = document.getElementById(`${prefix}-fecha-hasta`);
-
-            hidden.value = fechas.join(',');
+            const bloqueadas = document.getElementById(`${prefix}-fechas-bloqueadas`);
             lista.innerHTML = '';
+            bloqueadas.innerHTML = '';
+
+            const fechas = normalizarFechas(estado.fechasSeleccionadas.join(','));
+            estado.fechasSeleccionadas = fechas;
 
             if (!fechas.length) {
                 const vacia = document.createElement('span');
                 vacia.className = 'fecha-vacia';
                 vacia.textContent = 'Sin fechas seleccionadas.';
                 lista.appendChild(vacia);
-                desde.value = '';
-                hasta.value = '';
-                return;
             }
 
             fechas.forEach((fecha) => {
-                const item = document.createElement('div');
-                item.className = 'fecha-chip';
+                if (!Array.isArray(estado.programacion[fecha])) {
+                    estado.programacion[fecha] = [];
+                }
+                estado.programacion[fecha] = normalizarHorarios(estado.programacion[fecha]);
 
-                const texto = document.createElement('span');
-                texto.textContent = formatearFechaVisible(fecha);
+                const tarjeta = document.createElement('div');
+                tarjeta.className = 'fecha-emision-card';
+                if (!estado.programacion[fecha].length) {
+                    tarjeta.classList.add('pendiente');
+                }
+
+                const head = document.createElement('div');
+                head.className = 'fecha-emision-card-head';
+                head.innerHTML = `<strong>${formatearFechaVisible(fecha)}</strong>`;
 
                 const acciones = document.createElement('div');
-                acciones.className = 'fecha-chip-acciones';
+                acciones.className = 'fecha-emision-card-acciones';
 
-                const subir = document.createElement('button');
-                subir.type = 'button';
-                subir.textContent = '↑';
-                subir.addEventListener('click', () => moverFecha(prefix, fecha, -1));
+                const botonQuitar = document.createElement('button');
+                botonQuitar.type = 'button';
+                botonQuitar.textContent = 'Quitar fecha';
+                botonQuitar.addEventListener('click', () => {
+                    estado.fechasSeleccionadas = estado.fechasSeleccionadas.filter((item) => item !== fecha);
+                    delete estado.programacion[fecha];
+                    estado.fechasBloqueadas.delete(fecha);
+                    renderizarFechasProgramacion(prefix);
+                });
+                acciones.appendChild(botonQuitar);
+                head.appendChild(acciones);
+                tarjeta.appendChild(head);
 
-                const bajar = document.createElement('button');
-                bajar.type = 'button';
-                bajar.textContent = '↓';
-                bajar.addEventListener('click', () => moverFecha(prefix, fecha, 1));
+                const horariosWrap = document.createElement('details');
+                horariosWrap.className = 'generos-dropdown';
+                horariosWrap.open = true;
 
-                const quitar = document.createElement('button');
-                quitar.type = 'button';
-                quitar.textContent = '×';
-                quitar.addEventListener('click', () => quitarFecha(prefix, fecha));
+                const resumen = document.createElement('summary');
+                resumen.textContent = estado.programacion[fecha].length
+                    ? `Horarios seleccionados (${estado.programacion[fecha].length}/3)`
+                    : 'Selecciona al menos un horario';
+                horariosWrap.appendChild(resumen);
 
-                acciones.appendChild(subir);
-                acciones.appendChild(bajar);
-                acciones.appendChild(quitar);
-                item.appendChild(texto);
-                item.appendChild(acciones);
-                lista.appendChild(item);
+                const opciones = document.createElement('div');
+                opciones.className = 'horarios-disponibles';
+                const ocupacionFecha = estado.ocupacion[fecha] || {};
+
+                horariosDisponibles.forEach((horario) => {
+                    const boton = document.createElement('button');
+                    boton.type = 'button';
+                    boton.className = 'horario-toggle';
+                    boton.innerHTML = `<strong>${horario.nombre}</strong><small>${horario.inicio} - ${horario.fin}</small>`;
+
+                    const seleccionado = estado.programacion[fecha].includes(horario.nombre);
+                    const ocupadoPorOtra = Boolean(ocupacionFecha[horario.nombre]) && !seleccionado;
+
+                    if (seleccionado) {
+                        boton.classList.add('activo');
+                    }
+                    if (ocupadoPorOtra) {
+                        boton.classList.add('ocupado');
+                        boton.disabled = true;
+                    }
+
+                    boton.addEventListener('click', () => {
+                        const listaActual = normalizarHorarios(estado.programacion[fecha] || []);
+                        const indice = listaActual.indexOf(horario.nombre);
+
+                        if (indice >= 0) {
+                            listaActual.splice(indice, 1);
+                        } else {
+                            listaActual.push(horario.nombre);
+                        }
+
+                        estado.programacion[fecha] = normalizarHorarios(listaActual);
+                        renderizarFechasProgramacion(prefix);
+                    });
+
+                    opciones.appendChild(boton);
+                });
+
+                horariosWrap.appendChild(opciones);
+                tarjeta.appendChild(horariosWrap);
+
+                const seleccionados = document.createElement('div');
+                seleccionados.className = 'horarios-seleccionados';
+                if (!estado.programacion[fecha].length) {
+                    const nota = document.createElement('p');
+                    nota.className = 'fecha-emision-nota';
+                    nota.textContent = 'Selecciona al menos un horario para que esta fecha quede habilitada.';
+                    tarjeta.appendChild(nota);
+                } else {
+                    estado.programacion[fecha].forEach((nombreHorario) => {
+                        const chip = document.createElement('div');
+                        chip.className = 'horario-chip';
+                        chip.textContent = obtenerEtiquetaHorario(nombreHorario);
+                        seleccionados.appendChild(chip);
+                    });
+                    tarjeta.appendChild(seleccionados);
+                }
+
+                lista.appendChild(tarjeta);
             });
 
-            desde.value = formatearFechaVisible(fechas[0]);
-            hasta.value = formatearFechaVisible(fechas[fechas.length - 1]);
+            Array.from(estado.fechasBloqueadas)
+                .sort()
+                .forEach((fecha) => {
+                    const item = document.createElement('div');
+                    item.className = 'fecha-bloqueada-card';
+                    item.innerHTML = `<strong>${formatearFechaVisible(fecha)}</strong><span>No tiene horarios libres para esta película.</span>`;
+                    bloqueadas.appendChild(item);
+                });
+
+            sincronizarCamposProgramacion(prefix);
         }
 
-        function agregarFecha(prefix) {
-            const selector = document.getElementById(`${prefix}-fecha-selector`);
-            if (!selector.value) {
+        async function cargarDisponibilidadProgramacion(prefix) {
+            const estado = estadoProgramacion[prefix];
+            const params = new URLSearchParams();
+            if (estado.peliculaId) {
+                params.set('pelicula_id', String(estado.peliculaId));
+            }
+
+            const response = await fetch(`{% url "disponibilidad_emision" %}?${params.toString()}`, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+            });
+
+            const payload = await response.json();
+            if (!payload.ok) {
+                throw new Error(payload.error || 'No se pudo cargar la disponibilidad de horarios.');
+            }
+
+            estado.ocupacion = payload.ocupacion || {};
+        }
+
+        async function asegurarDisponibilidadProgramacion(prefix) {
+            try {
+                await cargarDisponibilidadProgramacion(prefix);
+                renderizarFechasProgramacion(prefix);
+            } catch (error) {
+                alert(error.message || 'No fue posible cargar horarios disponibles.');
+            }
+        }
+
+        function establecerProgramacion(prefix, value, fechas = '') {
+            const estado = estadoProgramacion[prefix];
+            estado.programacion = normalizarProgramacion(value);
+            estado.fechasSeleccionadas = normalizarFechas(`${Object.keys(estado.programacion).join(',')},${fechas}`);
+            estado.fechasBloqueadas = new Set();
+            renderizarFechasProgramacion(prefix);
+        }
+
+        function validarProgramacionFormulario(prefix) {
+            const raw = document.getElementById(`${prefix}-programacion-emision`).value;
+            let programacion = {};
+            try {
+                programacion = JSON.parse(raw || '{}');
+            } catch (error) {
+                programacion = {};
+            }
+
+            const totalFunciones = Object.values(programacion).reduce((acc, horarios) => acc + (Array.isArray(horarios) ? horarios.length : 0), 0);
+            if (!totalFunciones) {
+                alert('Debes seleccionar al menos una función (fecha + horario).');
+                return false;
+            }
+
+            return true;
+        }
+
+        function normalizarGeneros(value) {
+            const resultado = [];
+            const vistos = new Set();
+
+            (value || '').replace(/;/g, ',').split(',').forEach((item) => {
+                const genero = String(item).trim();
+                if (!genero) {
+                    return;
+                }
+
+                const clave = genero.toLowerCase();
+                if (vistos.has(clave)) {
+                    return;
+                }
+
+                vistos.add(clave);
+                resultado.push(genero);
+            });
+
+            return resultado;
+        }
+
+        function sincronizarGeneros(prefix) {
+            const seleccionados = estadoGeneros[prefix];
+            const hidden = document.getElementById(`${prefix}-generos`);
+            const resumen = document.getElementById(`${prefix}-generos-resumen`);
+            const summary = document.getElementById(`${prefix}-generos-summary`);
+            const error = document.getElementById(`${prefix}-generos-error`);
+
+            hidden.value = seleccionados.join(', ');
+            error.style.display = 'none';
+
+            if (seleccionados.length) {
+                resumen.textContent = `Seleccionados (${seleccionados.length}/5): ${seleccionados.join(', ')}`;
+                summary.textContent = `Géneros (${seleccionados.length}/5)`;
+            } else {
+                resumen.textContent = 'Sin géneros seleccionados.';
+                summary.textContent = 'Selecciona hasta 5 géneros';
+            }
+
+            document.querySelectorAll(`.genero-opcion[data-prefix="${prefix}"]`).forEach((boton) => {
+                const genero = boton.dataset.genero || '';
+                const seleccionado = seleccionados.some((item) => item.toLowerCase() === genero.toLowerCase());
+                boton.classList.toggle('seleccionado', seleccionado);
+            });
+        }
+
+        function alternarGenero(prefix, genero) {
+            const seleccionados = estadoGeneros[prefix];
+            const indice = seleccionados.findIndex((item) => item.toLowerCase() === genero.toLowerCase());
+            const error = document.getElementById(`${prefix}-generos-error`);
+
+            if (indice >= 0) {
+                seleccionados.splice(indice, 1);
+                sincronizarGeneros(prefix);
                 return;
             }
 
-            const hidden = document.getElementById(`${prefix}-fechas-emision`);
-            hidden.value = normalizarFechas(`${hidden.value},${selector.value}`).join(',');
-            selector.value = '';
-            renderizarFechas(prefix);
-        }
-
-        function agregarRangoFechas(prefix) {
-            const desde = document.getElementById(`${prefix}-fecha-rango-desde`).value;
-            const hasta = document.getElementById(`${prefix}-fecha-rango-hasta`).value;
-            if (!desde || !hasta) {
+            if (seleccionados.length >= 5) {
+                error.style.display = 'block';
                 return;
             }
 
-            if (desde > hasta) {
-                alert('La fecha "Desde" no puede ser posterior a "Hasta".');
+            seleccionados.push(genero);
+            sincronizarGeneros(prefix);
+        }
+
+        function establecerGeneros(prefix, value) {
+            estadoGeneros[prefix] = normalizarGeneros(value).slice(0, 5);
+            sincronizarGeneros(prefix);
+        }
+
+        function validarGenerosFormulario(prefix) {
+            const seleccionados = estadoGeneros[prefix] || [];
+            const error = document.getElementById(`${prefix}-generos-error`);
+
+            if (!seleccionados.length) {
+                error.textContent = 'Selecciona al menos un género.';
+                error.style.display = 'block';
+                return false;
+            }
+
+            if (seleccionados.length > 5) {
+                error.textContent = 'Solo puedes seleccionar hasta 5 géneros.';
+                error.style.display = 'block';
+                return false;
+            }
+
+            error.textContent = 'Solo puedes seleccionar hasta 5 géneros.';
+            error.style.display = 'none';
+            return true;
+        }
+
+        function asegurarProveedorDisponible(prefix, proveedor) {
+            const select = document.getElementById(`${prefix}-proveedor`);
+            if (!proveedor) {
                 return;
             }
 
-            const fechas = normalizarFechas(document.getElementById(`${prefix}-fechas-emision`).value);
-            const actual = new Date(`${desde}T00:00:00`);
-            const fin = new Date(`${hasta}T00:00:00`);
-
-            while (actual <= fin) {
-                const year = actual.getFullYear();
-                const month = String(actual.getMonth() + 1).padStart(2, '0');
-                const day = String(actual.getDate()).padStart(2, '0');
-                fechas.push(`${year}-${month}-${day}`);
-                actual.setDate(actual.getDate() + 1);
-            }
-
-            guardarFechas(prefix, fechas);
-            document.getElementById(`${prefix}-fecha-rango-desde`).value = '';
-            document.getElementById(`${prefix}-fecha-rango-hasta`).value = '';
-        }
-
-        function quitarFecha(prefix, fecha) {
-            const fechas = normalizarFechas(document.getElementById(`${prefix}-fechas-emision`).value).filter((item) => item !== fecha);
-            guardarFechas(prefix, fechas);
-        }
-
-        function moverFecha(prefix, fecha, desplazamiento) {
-            const fechas = normalizarFechas(document.getElementById(`${prefix}-fechas-emision`).value);
-            const indice = fechas.indexOf(fecha);
-            const destino = indice + desplazamiento;
-            if (indice === -1 || destino < 0 || destino >= fechas.length) {
+            const existe = Array.from(select.options).some((option) => option.value === proveedor);
+            if (existe) {
                 return;
             }
 
-            [fechas[indice], fechas[destino]] = [fechas[destino], fechas[indice]];
-            guardarFechas(prefix, fechas);
+            const opcion = document.createElement('option');
+            opcion.value = proveedor;
+            opcion.textContent = proveedor;
+            select.appendChild(opcion);
         }
 
-        function establecerFechas(prefix, value) {
-            guardarFechas(prefix, normalizarFechas(value));
+        function normalizarCalificacionInput(value) {
+            const limpio = String(value || '').replace(/[^\d.]/g, '');
+            const partes = limpio.split('.');
+            if (partes.length <= 1) {
+                return limpio;
+            }
+
+            const decimales = partes.slice(1).join('').slice(0, 1);
+            return decimales ? `${partes[0]}.${decimales}` : partes[0];
         }
 
-        function validarFechasAntesDeEnviar(event, prefix) {
-            if (!document.getElementById(`${prefix}-fechas-emision`).value.trim()) {
+        function validarCalificacionFormulario(prefix) {
+            const input = document.getElementById(`${prefix}-calificacion`);
+            const valor = String(input.value || '').trim();
+
+            if (!valor) {
+                input.setCustomValidity('Ingresa una calificación.');
+                input.reportValidity();
+                return false;
+            }
+
+            if (!/^(10(\.0)?|[0-9](\.[0-9])?)$/.test(valor)) {
+                input.setCustomValidity('La calificación debe ser un número entre 0.0 y 10.0.');
+                input.reportValidity();
+                return false;
+            }
+
+            const numero = Number(valor);
+            if (Number.isNaN(numero) || numero < 0 || numero > 10) {
+                input.setCustomValidity('La calificación debe estar entre 0.0 y 10.0.');
+                input.reportValidity();
+                return false;
+            }
+
+            input.setCustomValidity('');
+            return true;
+        }
+
+        document.querySelectorAll('.genero-opcion').forEach((boton) => {
+            boton.addEventListener('click', () => {
+                alternarGenero(boton.dataset.prefix, boton.dataset.genero || '');
+            });
+        });
+
+        ['add-calificacion', 'edit-calificacion'].forEach((id) => {
+            const input = document.getElementById(id);
+
+            input.addEventListener('input', function () {
+                this.value = normalizarCalificacionInput(this.value);
+                this.setCustomValidity('');
+            });
+
+            input.addEventListener('paste', function (event) {
                 event.preventDefault();
-                alert('Debes seleccionar al menos una fecha de emisión.');
-            }
-        }
+                const texto = (event.clipboardData || window.clipboardData).getData('text');
+                this.value = normalizarCalificacionInput(texto);
+                this.setCustomValidity('');
+            });
+        });
 
         let peliculaSeleccionada = null;
 
+        let _seccionActiva = null;
+
         function showSection(section) {
+            _seccionActiva = section;
             document.getElementById(section + '-section').style.display = 'block';
+            if (section === 'add' || section === 'edit') {
+                document.getElementById('form-dim-overlay').style.display = 'block';
+            }
             if (section === 'edit') {
                 document.getElementById('edit-form').style.display = 'block';
+                asegurarDisponibilidadProgramacion('edit');
             }
             if (section === 'delete') {
                 document.getElementById('delete-form').style.display = 'block';
+            }
+            if (section === 'add') {
+                document.getElementById('add-form').reset();
+                estadoProgramacion.add.peliculaId = null;
+                document.getElementById('add-fechas-emision').value = '';
+                document.getElementById('add-programacion-emision').value = '';
+                estadoRango.add.estreno = null;
+                estadoRango.add.fin = null;
+                actualizarInputFechaVisible('add', 'estreno');
+                actualizarInputFechaVisible('add', 'fin');
+                establecerGeneros('add', '');
+
+                const draft = cargarBorradorProgramacion('add');
+                if (draft && draft.programacion) {
+                    establecerProgramacion('add', draft.programacion, (draft.fechasSeleccionadas || []).join(','));
+                } else {
+                    establecerProgramacion('add', {}, '');
+                }
+                asegurarDisponibilidadProgramacion('add');
             }
         }
 
         function hideSection(section) {
             document.getElementById(section + '-section').style.display = 'none';
+            if (section === 'add' || section === 'edit') {
+                document.getElementById('form-dim-overlay').style.display = 'none';
+            }
             if (section === 'edit') {
                 document.getElementById('edit-form').style.display = 'none';
             }
             if (section === 'delete') {
                 document.getElementById('delete-form').style.display = 'none';
+            }
+            if (_seccionActiva === section) {
+                _seccionActiva = null;
+            }
+        }
+
+        function cerrarFormularioActivo() {
+            if (_seccionActiva === 'add' || _seccionActiva === 'edit') {
+                hideSection(_seccionActiva);
             }
         }
 
@@ -770,18 +1826,38 @@
             const duracion = element.dataset.duracion;
             const descripcion = element.dataset.descripcion;
             const calificacion = element.dataset.calificacion;
-            const fechasEmision = element.dataset.fechasEmision;
+            let programacion = {};
+            try {
+                programacion = normalizarProgramacion(element.dataset.programacionEmision || '{}');
+            } catch (error) {
+                programacion = {};
+            }
+
+            asegurarProveedorDisponible('edit', proveedor);
             document.getElementById('edit-id').value = id;
             document.getElementById('edit-nombre').value = nombre;
             document.getElementById('edit-proveedor').value = proveedor;
-            document.getElementById('edit-generos').value = generos;
+            establecerGeneros('edit', generos);
             document.getElementById('edit-clasificacion').value = clasificacion;
             document.getElementById('edit-duracion').value = duracion;
             document.getElementById('edit-descripcion').value = descripcion;
             document.getElementById('edit-calificacion').value = calificacion;
-            establecerFechas('edit', fechasEmision);
             document.getElementById('edit-portada').value = '';
             document.getElementById('edit-eliminar-portada').checked = false;
+
+            estadoRango.edit.estreno = null;
+            estadoRango.edit.fin = null;
+            actualizarInputFechaVisible('edit', 'estreno');
+            actualizarInputFechaVisible('edit', 'fin');
+
+            estadoProgramacion.edit.peliculaId = parseInt(id, 10);
+            const draft = cargarBorradorProgramacion('edit');
+            if (draft && String(draft.peliculaId || '') === String(id)) {
+                establecerProgramacion('edit', draft.programacion || {}, (draft.fechasSeleccionadas || []).join(','));
+            } else {
+                establecerProgramacion('edit', programacion, element.dataset.fechasEmision || '');
+            }
+            asegurarDisponibilidadProgramacion('edit');
         }
 
         function seleccionarTarjetaPelicula(element) {
@@ -824,11 +1900,41 @@
             showSection('delete');
         }
 
-        document.getElementById('add-form').addEventListener('submit', (event) => validarFechasAntesDeEnviar(event, 'add'));
-        document.getElementById('edit-form').addEventListener('submit', (event) => validarFechasAntesDeEnviar(event, 'edit'));
-        document.getElementById('add-fecha-selector').addEventListener('change', () => agregarFecha('add'));
-        document.getElementById('edit-fecha-selector').addEventListener('change', () => agregarFecha('edit'));
-        establecerFechas('add', '');
-        establecerFechas('edit', '');
+        document.getElementById('add-form').addEventListener('submit', function (event) {
+            if (!validarGenerosFormulario('add')) {
+                event.preventDefault();
+                return;
+            }
+
+            if (!validarCalificacionFormulario('add')) {
+                event.preventDefault();
+                return;
+            }
+
+            if (!validarProgramacionFormulario('add')) {
+                event.preventDefault();
+            }
+        });
+
+        document.getElementById('edit-form').addEventListener('submit', function (event) {
+            if (!validarGenerosFormulario('edit')) {
+                event.preventDefault();
+                return;
+            }
+
+            if (!validarCalificacionFormulario('edit')) {
+                event.preventDefault();
+                return;
+            }
+
+            if (!validarProgramacionFormulario('edit')) {
+                event.preventDefault();
+            }
+        });
+
+        establecerGeneros('add', '');
+        establecerGeneros('edit', '');
+        establecerProgramacion('add', {}, '');
+        establecerProgramacion('edit', {}, '');
     </script>
 {% endblock %}
