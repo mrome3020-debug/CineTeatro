@@ -14,6 +14,7 @@ urlpatterns = [
     path('registrar_cliente/', Main.registrar_cliente_web, name='registrar_cliente'),
     path('admin/', Main_admin.admin, name='admin_panel'),
     path('portadas/', Main_admin.ver_portadas, name='ver_portadas'),
+    path('disponibilidad_emision/', Main_admin.obtener_disponibilidad_emision, name='disponibilidad_emision'),
     path('add_pelicula/', Main_admin.add_pelicula, name='add_pelicula'),
     path('edit_pelicula/', Main_admin.edit_pelicula, name='edit_pelicula'),
     path('delete_pelicula/', Main_admin.delete_pelicula, name='delete_pelicula'),

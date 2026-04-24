@@ -6,7 +6,7 @@ from django.http import JsonResponse
 from django.shortcuts import redirect, render
 
 from Salas import salas
-from Horarios import horarios
+from Horarios import obtener_horarios_disponibles
 from DB import (
 	autenticar_cliente,
 	autenticar_administrador,
@@ -91,7 +91,7 @@ def main_view(request):
 		'Main.html',
 		{
 			'salas': salas,
-			'horarios': horarios,
+			'horarios': obtener_horarios_disponibles(),
 			'peliculas': peliculas,
 			'usuario_actual': usuario_actual,
 			'puede_reservar': puede_reservar,
