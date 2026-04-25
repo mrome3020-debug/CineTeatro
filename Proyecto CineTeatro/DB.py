@@ -352,23 +352,36 @@ def ensure_reservas_schema():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             usuario TEXT NOT NULL,
             pelicula TEXT NOT NULL,
+            fecha_funcion TEXT,
+            horario_funcion TEXT,
             numero_entrada INTEGER NOT NULL,
             precio INTEGER NOT NULL,
             creado_en TEXT NOT NULL
         )
         """
     )
+
+    cursor.execute("PRAGMA table_info(RESERVAS)")
+    columnas = {col[1] for col in cursor.fetchall()}
+    if 'fecha_funcion' not in columnas:
+        cursor.execute("ALTER TABLE RESERVAS ADD COLUMN fecha_funcion TEXT")
+    if 'horario_funcion' not in columnas:
+        cursor.execute("ALTER TABLE RESERVAS ADD COLUMN horario_funcion TEXT")
+
     conn.commit()
     conn.close()
 
 
-def crear_reserva_entrada(usuario, pelicula, precio=200):
+def crear_reserva_entrada(usuario, pelicula, fecha_funcion='', horario_funcion='', precio=200):
     ensure_reservas_schema()
 
     conn = obtener_conexion(row_factory=True)
     cursor = conn.cursor()
 
-    cursor.execute('SELECT numero_entrada FROM RESERVAS WHERE pelicula = ?', (pelicula,))
+    cursor.execute(
+        'SELECT numero_entrada FROM RESERVAS WHERE pelicula = ? AND COALESCE(fecha_funcion, "") = ? AND COALESCE(horario_funcion, "") = ?',
+        (pelicula, str(fecha_funcion or '').strip(), str(horario_funcion or '').strip()),
+    )
     usados = {int(fila['numero_entrada']) for fila in cursor.fetchall()}
     disponibles = [numero for numero in range(1, 301) if numero not in usados]
 
@@ -380,8 +393,8 @@ def crear_reserva_entrada(usuario, pelicula, precio=200):
     creado_en = datetime.now().isoformat(timespec='seconds')
 
     cursor.execute(
-        'INSERT INTO RESERVAS (usuario, pelicula, numero_entrada, precio, creado_en) VALUES (?, ?, ?, ?, ?)',
-        (usuario, pelicula, numero, precio, creado_en),
+        'INSERT INTO RESERVAS (usuario, pelicula, fecha_funcion, horario_funcion, numero_entrada, precio, creado_en) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        (usuario, pelicula, str(fecha_funcion or '').strip(), str(horario_funcion or '').strip(), numero, precio, creado_en),
     )
     conn.commit()
     conn.close()
@@ -389,6 +402,8 @@ def crear_reserva_entrada(usuario, pelicula, precio=200):
     return {
         'usuario': usuario,
         'pelicula': pelicula,
+        'fecha_funcion': str(fecha_funcion or '').strip(),
+        'horario_funcion': str(horario_funcion or '').strip(),
         'numero_entrada': numero,
         'precio': precio,
         'creado_en': creado_en,
@@ -402,7 +417,7 @@ def obtener_reservas_por_usuario(usuario):
     cursor = conn.cursor()
     cursor.execute(
         """
-        SELECT id, pelicula, numero_entrada, precio, creado_en
+        SELECT id, pelicula, fecha_funcion, horario_funcion, numero_entrada, precio, creado_en
         FROM RESERVAS
         WHERE usuario = ?
         ORDER BY id DESC
@@ -426,6 +441,14 @@ def cancelar_reserva_usuario(usuario, reserva_id):
     return eliminadas > 0
 
 
+def _convertir_fecha_para_comparar(fecha_dd_mm_yyyy):
+    """Convierte dd/mm/yyyy a YYYY-MM-DD para comparaciones y ordenamiento."""
+    try:
+        return datetime.strptime(fecha_dd_mm_yyyy, '%d/%m/%Y').strftime('%Y-%m-%d')
+    except (ValueError, TypeError):
+        return fecha_dd_mm_yyyy
+
+
 def parsear_fechas_emision(valor):
     if valor is None:
         return []
@@ -445,7 +468,7 @@ def parsear_fechas_emision(valor):
         normalizada = None
         for formato in ('%Y-%m-%d', '%d/%m/%y', '%d/%m/%Y'):
             try:
-                normalizada = datetime.strptime(texto, formato).strftime('%Y-%m-%d')
+                normalizada = datetime.strptime(texto, formato).strftime('%d/%m/%Y')
                 break
             except ValueError:
                 continue
@@ -454,7 +477,7 @@ def parsear_fechas_emision(valor):
             fechas.append(normalizada)
             vistas.add(normalizada)
 
-    return fechas
+    return sorted(fechas, key=_convertir_fecha_para_comparar)
 
 
 def parsear_programacion_emision(valor):
@@ -496,7 +519,7 @@ def parsear_programacion_emision(valor):
         if horarios:
             programacion[fecha] = sorted(horarios, key=lambda nombre: HORARIOS_ORDEN[nombre])
 
-    return dict(sorted(programacion.items()))
+    return dict(sorted(programacion.items(), key=lambda item: _convertir_fecha_para_comparar(item[0])))
 
 
 def serializar_programacion_emision(valor):
@@ -573,7 +596,10 @@ def formatear_fecha_corta(fecha_valor):
     fechas = parsear_fechas_emision(fecha_valor)
     if not fechas:
         return ''
-    return datetime.strptime(fechas[0], '%Y-%m-%d').strftime('%d/%m/%y')
+    try:
+        return datetime.strptime(fechas[0], '%d/%m/%Y').strftime('%d/%m/%y')
+    except ValueError:
+        return ''
 
 
 def ensure_fechas_emision_schema():
@@ -667,16 +693,24 @@ def obtener_peliculas_para_main(limit=10):
     cursor = conn.cursor()
     cursor.execute(
         """
-        SELECT Nombre, Generos, Duracion, Calificacion, Fecha_estreno, Fechas_emision, Portada, Portada_nombre
+        SELECT Nombre, Generos, Clasificacion, Duracion, Calificacion, Fecha_estreno, Fechas_emision, Programacion_emision, Portada, Portada_nombre
         FROM PELICULAS
-        ORDER BY COALESCE(Fecha_estreno, SUBSTR(Fechas_emision, 1, 10)) ASC
         LIMIT ?
         """,
         (limit,),
     )
-    peliculas = cursor.fetchall()
+    peliculas = list(cursor.fetchall())
     conn.close()
-    return peliculas
+    
+    def obtener_fecha_ordenamiento(pelicula):
+        fecha_str = pelicula['Fecha_estreno'] or ''
+        if not fecha_str:
+            fechas = parsear_fechas_emision(pelicula['Fechas_emision'])
+            fecha_str = fechas[0] if fechas else '31/12/9999'
+        return _convertir_fecha_para_comparar(fecha_str)
+    
+    peliculas_ordenadas = sorted(peliculas, key=obtener_fecha_ordenamiento)
+    return peliculas_ordenadas
 
 
 def eliminar_portada_por_rowid(rowid):

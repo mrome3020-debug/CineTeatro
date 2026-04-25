@@ -1,4 +1,5 @@
 import base64
+from datetime import datetime
 
 from django.http import HttpResponseBadRequest, JsonResponse
 from django.shortcuts import redirect, render
@@ -121,7 +122,7 @@ def _obtener_generos_contexto(peliculas):
 
 def _obtener_fechas_calendario_contexto():
     fechas = calendario.obtener_fechas_seleccionables()
-    return sorted({fecha.strftime('%Y-%m-%d') for fecha in fechas})
+    return sorted([fecha.strftime('%Y-%m-%d') for fecha in fechas])
 
 
 def admin(request):

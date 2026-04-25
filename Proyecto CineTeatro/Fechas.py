@@ -89,7 +89,7 @@ class Fecha:
     
     def mostrar_calendario_completo(self):
         """Muestra el calendario del mes actual y siguiente"""
-        print(f"\nCALENDARIO DISPONIBLE - Hoy: {self.hoy.strftime('%d/%m/%Y')}")
+        print(f"\nCALENDARIO DISPONIBLE - Hoy: {self.hoy.strftime('%d/%m/%y')}")
         
         meses = self.obtener_meses_disponibles()
         
