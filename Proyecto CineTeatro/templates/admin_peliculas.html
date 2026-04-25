@@ -1265,7 +1265,17 @@
             const vistas = new Set();
 
             (value || '').replace(/;/g, ',').split(',').forEach((item) => {
-                const fecha = String(item).trim();
+                let fecha = String(item).trim();
+                if (!fecha) {
+                    return;
+                }
+                // Convertir dd/mm/YYYY o dd/mm/yy → YYYY-MM-DD
+                const matchDmy = fecha.match(/^(\d{2})\/(\d{2})\/(\d{2,4})$/);
+                if (matchDmy) {
+                    const [, d, m, y] = matchDmy;
+                    const fullYear = y.length === 2 ? `20${y}` : y;
+                    fecha = `${fullYear}-${m}-${d}`;
+                }
                 if (!fecha || vistas.has(fecha)) {
                     return;
                 }
@@ -1325,7 +1335,8 @@
             if (!year || !month || !day) {
                 return value;
             }
-            return `${day}/${month}/${year}`;
+            const yearShort = String(year).slice(-2);
+            return `${day}/${month}/${yearShort}`;
         }
 
         function obtenerEtiquetaHorario(nombreHorario) {
@@ -1549,7 +1560,15 @@
                 throw new Error(payload.error || 'No se pudo cargar la disponibilidad de horarios.');
             }
 
-            estado.ocupacion = payload.ocupacion || {};
+            // Normalizar claves de fecha de la ocupacion (el servidor devuelve dd/mm/YYYY)
+            const ocupacionNormalizada = {};
+            Object.entries(payload.ocupacion || {}).forEach(([fecha, datos]) => {
+                const fechaNorm = normalizarFechas(fecha)[0];
+                if (fechaNorm) {
+                    ocupacionNormalizada[fechaNorm] = datos;
+                }
+            });
+            estado.ocupacion = ocupacionNormalizada;
         }
 
         async function asegurarDisponibilidadProgramacion(prefix) {

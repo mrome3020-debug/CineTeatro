@@ -250,6 +250,12 @@
 			transition: border-color 0.2s ease, box-shadow 0.2s ease;
 		}
 
+		.pelicula-card .hint-doble-click {
+			margin: 2px 0 0;
+			font-size: 0.78rem;
+			color: #4f738b;
+		}
+
 		.pelicula-card:hover {
 			border-color: var(--accent-1);
 		}
@@ -355,6 +361,103 @@
 			position: relative;
 		}
 
+		.modal-detalle {
+			width: min(980px, 100%);
+			max-height: min(88vh, 880px);
+			overflow: auto;
+		}
+
+		.detalle-grid {
+			display: grid;
+			grid-template-columns: 250px 1fr;
+			gap: 18px;
+		}
+
+		.detalle-portada,
+		.detalle-portada-placeholder {
+			width: 250px;
+			height: 360px;
+			border-radius: 10px;
+			border: 1px solid var(--line-1);
+			background: #edf8ff;
+		}
+
+		.detalle-portada {
+			object-fit: contain;
+			object-position: center;
+		}
+
+		.detalle-portada-placeholder {
+			border-style: dashed;
+		}
+
+		.detalle-info h3 {
+			margin-top: 0;
+			font-size: 1.42rem;
+		}
+
+		.detalle-datos {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+			gap: 8px;
+			margin-bottom: 12px;
+		}
+
+		.detalle-dato {
+			background: #f4fbff;
+			border: 1px solid var(--line-1);
+			border-radius: 9px;
+			padding: 8px 10px;
+			font-size: 0.92rem;
+		}
+
+		.detalle-programacion h4 {
+			margin: 10px 0 8px;
+		}
+
+		.detalle-dia {
+			border: 1px solid var(--line-1);
+			border-radius: 10px;
+			padding: 10px;
+			margin-bottom: 8px;
+			background: #fbfeff;
+		}
+
+		.detalle-dia-fecha {
+			font-weight: 700;
+			margin-bottom: 6px;
+		}
+
+		.detalle-horarios {
+			display: flex;
+			gap: 6px;
+			flex-wrap: wrap;
+		}
+
+		.detalle-horario-chip {
+			background: #e7f4fc;
+			border: 1px solid #b8dbef;
+			border-radius: 999px;
+			padding: 4px 9px;
+			font-size: 0.85rem;
+		}
+
+		button.detalle-horario-chip {
+			cursor: pointer;
+			transition: all 0.15s ease;
+		}
+
+		button.detalle-horario-chip:hover {
+			background: #d6ecfa;
+			border-color: #8ec8e7;
+		}
+
+		button.detalle-horario-chip.seleccionado {
+			background: #2e7cad;
+			color: #ffffff;
+			border-color: #2e7cad;
+		}
+
 		.modal h3 {
 			margin: 0 0 8px;
 			font-family: 'Comic Sans MS', cursive;
@@ -378,6 +481,27 @@
 
 		.btn-cerrar-modal:hover {
 			color: #0f2d43;
+		}
+
+		.btn-cerrar-detalle {
+			top: 10px;
+			right: 10px;
+			left: auto;
+			width: 30px;
+			height: 30px;
+			font-size: 20px;
+			color: #ffffff;
+			background: rgba(15, 45, 67, 0.88);
+			border-radius: 50%;
+			line-height: 1;
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+		}
+
+		.btn-cerrar-detalle:hover {
+			color: #ffffff;
+			background: rgba(9, 29, 43, 0.96);
 		}
 
 		.modal p {
@@ -647,6 +771,18 @@
 				grid-template-columns: 1fr;
 			}
 
+			.detalle-grid {
+				grid-template-columns: 1fr;
+			}
+
+			.detalle-portada,
+			.detalle-portada-placeholder {
+				width: min(250px, 100%);
+				height: auto;
+				aspect-ratio: 11 / 16;
+				margin: 0 auto;
+			}
+
 			.bloque-funcion {
 				padding: 16px;
 			}
@@ -706,20 +842,23 @@
 
 		<section class="seccion" id="peliculas">
 			<h2>Cartelera</h2>
-			<div class="reserva-barra" id="reserva-barra">
-				<div class="reserva-barra-info">
-					<p id="reserva-pelicula-texto">Película seleccionada:</p>
-					<button type="button" class="btn-cerrar-seleccion" id="btn-cerrar-seleccion" aria-label="Quitar selección">×</button>
-				</div>
-				<button type="button" id="btn-reservar" class="boton-reservar{% if not puede_reservar %} bloqueado{% endif %}">{% if puede_reservar %}Reservar entrada{% else %}Solo Clientes{% endif %}</button>
-			</div>
 			{% if not puede_reservar %}
 			<p class="aviso-reserva">Solo los usuarios registrados e ingresados como Clientes pueden reservar entradas.</p>
 			{% endif %}
 			<div class="peliculas-wrapper">
 				<div class="peliculas-grid">
 					{% for pelicula in peliculas %}
-					<article class="pelicula-card" data-pelicula="{{ pelicula.nombre }}">
+					<article
+						class="pelicula-card"
+						data-pelicula="{{ pelicula.nombre|escape }}"
+						data-generos="{{ pelicula.generos|escape }}"
+						data-clasificacion="{{ pelicula.clasificacion|escape }}"
+						data-duracion="{{ pelicula.duracion|escape }}"
+						data-calificacion="{{ pelicula.calificacion|escape }}"
+						data-fecha-estreno="{{ pelicula.fecha_estreno|escape }}"
+						data-fecha-hasta="{{ pelicula.fecha_hasta|escape }}"
+						data-programacion-id="programacion-pelicula-{{ forloop.counter0 }}"
+					>
 						<div class="portada-contenedor">
 						{% if pelicula.portada_src %}
 						<img class="pelicula-portada" src="{{ pelicula.portada_src }}" alt="Portada de {{ pelicula.nombre }}">
@@ -737,6 +876,18 @@
 							{% endif %}
 						</div>
 						<p class="pelicula-calificacion">Calificacion: {{ pelicula.calificacion }}</p>
+						<p class="hint-doble-click">Doble click para ver detalle completo</p>
+						<div id="programacion-pelicula-{{ forloop.counter0 }}" hidden>
+							{% for bloque in pelicula.programacion_detalle %}
+							<div data-fecha="{{ bloque.fecha|escape }}">
+								{% for horario in bloque.horarios %}
+								<span data-horario="{{ horario.nombre|escape }}" data-horario-label="{{ horario.nombre|escape }}{% if horario.inicio or horario.fin %} ({{ horario.inicio|escape }} - {{ horario.fin|escape }}){% endif %}"></span>
+								{% endfor %}
+							</div>
+							{% empty %}
+							<div data-fecha="Sin fechas de emisión"></div>
+							{% endfor %}
+						</div>
 					</article>
 					{% endfor %}
 				</div>
@@ -766,19 +917,6 @@
 		</section>
 	</main>
 
-	<div class="modal-overlay" id="modal-reserva-overlay">
-		<div class="modal">
-			<button type="button" class="btn-cerrar-modal" data-close-modal="modal-reserva-overlay" aria-label="Cerrar ventana">×</button>
-			<h3>Reservar entrada</h3>
-			<p id="modal-pelicula"></p>
-			<p>La entrada tiene un valor de: <strong>$200</strong></p>
-			<div class="modal-actions">
-				<button type="button" class="btn-modal btn-cancelar btn-cancelar-pos" id="btn-cancelar-reserva">Cancelar Reserva</button>
-				<button type="button" class="btn-modal btn-confirmar" id="btn-confirmar-reserva">Confirmar</button>
-			</div>
-		</div>
-	</div>
-
 	<div class="modal-overlay" id="modal-ticket-overlay">
 		<div class="modal">
 			<button type="button" class="btn-cerrar-modal" data-close-modal="modal-ticket-overlay" aria-label="Cerrar ventana">×</button>
@@ -786,11 +924,40 @@
 			<h3>Ticket de reserva</h3>
 			<p id="ticket-pelicula"></p>
 			<p id="ticket-usuario"></p>
+			<p id="ticket-fecha-horario"></p>
 			<p id="ticket-numero"></p>
 			<p id="ticket-precio"></p>
 			<div class="modal-actions">
 				<button type="button" class="btn-modal btn-guardar btn-guardar-pos" id="btn-guardar-ticket">Guardar reserva</button>
 				<button type="button" class="btn-modal btn-cancelar btn-cancelar-pos" id="btn-cerrar-ticket">Cancelar Reserva</button>
+			</div>
+		</div>
+	</div>
+
+	<div class="modal-overlay" id="modal-detalle-pelicula-overlay">
+		<div class="modal modal-detalle">
+			<button type="button" class="btn-cerrar-modal btn-cerrar-detalle" data-close-modal="modal-detalle-pelicula-overlay" aria-label="Cerrar ventana">×</button>
+			<div class="detalle-grid">
+				<div id="detalle-portada-wrap"></div>
+				<div class="detalle-info">
+					<h3 id="detalle-nombre"></h3>
+					<div class="detalle-datos">
+						<div class="detalle-dato"><strong>Género:</strong> <span id="detalle-generos"></span></div>
+						<div class="detalle-dato"><strong>Clasificación:</strong> <span id="detalle-clasificacion"></span></div>
+						<div class="detalle-dato"><strong>Duración:</strong> <span id="detalle-duracion"></span></div>
+						<div class="detalle-dato"><strong>Calificación:</strong> <span id="detalle-calificacion"></span></div>
+						<div class="detalle-dato"><strong>Estreno:</strong> <span id="detalle-estreno"></span></div>
+						<div class="detalle-dato"><strong>Hasta:</strong> <span id="detalle-hasta"></span></div>
+					</div>
+					<div class="detalle-programacion">
+						<h4>Días de emisión y horarios</h4>
+						<div id="detalle-programacion-lista"></div>
+						<div id="detalle-reserva-box" style="display:none; margin-top: 12px;">
+							<p id="detalle-reserva-resumen" style="margin: 0 0 8px; font-size: 0.92rem;"></p>
+							<button type="button" class="btn-modal btn-confirmar" id="btn-reservar-detalle">Reservar entrada</button>
+						</div>
+					</div>
+				</div>
 			</div>
 		</div>
 	</div>
@@ -809,8 +976,9 @@
 	<script>
 		const precioEntrada = {{ precio_entrada }};
 		const puedeReservar = {% if puede_reservar %}true{% else %}false{% endif %};
-		let peliculaSeleccionada = null;
+		const LONG_PRESS_MS = 520;
 		let reservaActual = null;
+		let funcionSeleccionada = null;
 
 		function getCookie(name) {
 			const cookieValue = document.cookie
@@ -819,28 +987,116 @@
 			return cookieValue ? decodeURIComponent(cookieValue.split('=')[1]) : '';
 		}
 
-		function seleccionarPelicula(card) {
-			document.querySelectorAll('.pelicula-card').forEach((item) => item.classList.remove('selected'));
-			card.classList.add('selected');
-			peliculaSeleccionada = card.dataset.pelicula;
-			document.getElementById('reserva-pelicula-texto').textContent = `Película seleccionada: ${peliculaSeleccionada}`;
-			document.getElementById('reserva-barra').classList.add('visible');
+		function actualizarCajaReservaDetalle() {
+			const box = document.getElementById('detalle-reserva-box');
+			const resumen = document.getElementById('detalle-reserva-resumen');
+
+			if (!funcionSeleccionada) {
+				box.style.display = 'none';
+				resumen.textContent = '';
+				return;
+			}
+
+			box.style.display = 'block';
+			resumen.textContent = `Función seleccionada: ${funcionSeleccionada.fecha} - ${funcionSeleccionada.horarioLabel} - Precio: $${precioEntrada}`;
 		}
 
-		function limpiarSeleccionPelicula() {
-			peliculaSeleccionada = null;
-			document.querySelectorAll('.pelicula-card').forEach((item) => item.classList.remove('selected'));
-			document.getElementById('reserva-pelicula-texto').textContent = 'Película seleccionada:';
-			document.getElementById('reserva-barra').classList.remove('visible');
+		function abrirDetallePelicula(card) {
+			funcionSeleccionada = null;
+			actualizarCajaReservaDetalle();
+
+			const portada = card.querySelector('.pelicula-portada');
+			const portadaWrap = document.getElementById('detalle-portada-wrap');
+			if (portada && portada.getAttribute('src')) {
+				portadaWrap.innerHTML = `<img class="detalle-portada" src="${portada.getAttribute('src')}" alt="${portada.getAttribute('alt') || 'Portada'}">`;
+			} else {
+				portadaWrap.innerHTML = '<div class="detalle-portada-placeholder"></div>';
+			}
+
+			document.getElementById('detalle-nombre').textContent = card.dataset.pelicula || 'Película';
+			document.getElementById('detalle-generos').textContent = card.dataset.generos || '-';
+			document.getElementById('detalle-clasificacion').textContent = card.dataset.clasificacion || '-';
+			document.getElementById('detalle-duracion').textContent = card.dataset.duracion || '-';
+			document.getElementById('detalle-calificacion').textContent = card.dataset.calificacion || '-';
+			document.getElementById('detalle-estreno').textContent = card.dataset.fechaEstreno || '-';
+			document.getElementById('detalle-hasta').textContent = card.dataset.fechaHasta || card.dataset.fechaEstreno || '-';
+
+			const lista = document.getElementById('detalle-programacion-lista');
+			lista.innerHTML = '';
+			const programacionId = card.dataset.programacionId;
+			const programacionNodo = programacionId ? document.getElementById(programacionId) : null;
+			const dias = programacionNodo ? Array.from(programacionNodo.querySelectorAll('[data-fecha]')) : [];
+
+			if (!dias.length) {
+				const vacio = document.createElement('p');
+				vacio.textContent = 'No hay programación disponible para esta película.';
+				lista.appendChild(vacio);
+			} else {
+				dias.forEach((dia) => {
+					const fecha = dia.getAttribute('data-fecha') || 'Sin fecha';
+					const horarios = Array.from(dia.querySelectorAll('[data-horario]')).map((item) => ({
+						horario: item.getAttribute('data-horario') || '',
+						horarioLabel: item.getAttribute('data-horario-label') || item.getAttribute('data-horario') || '',
+					}));
+
+					const bloque = document.createElement('article');
+					bloque.className = 'detalle-dia';
+
+					const titulo = document.createElement('div');
+					titulo.className = 'detalle-dia-fecha';
+					titulo.textContent = fecha;
+					bloque.appendChild(titulo);
+
+					const horariosWrap = document.createElement('div');
+					horariosWrap.className = 'detalle-horarios';
+
+					if (!horarios.length) {
+						const sinHorario = document.createElement('span');
+						sinHorario.className = 'detalle-horario-chip';
+						sinHorario.textContent = 'Sin horarios';
+						horariosWrap.appendChild(sinHorario);
+					} else {
+						horarios.forEach((horarioData) => {
+							const chip = document.createElement('button');
+							chip.type = 'button';
+							chip.className = 'detalle-horario-chip';
+							chip.textContent = horarioData.horarioLabel;
+							chip.addEventListener('click', () => {
+								lista.querySelectorAll('button.detalle-horario-chip').forEach((item) => item.classList.remove('seleccionado'));
+								chip.classList.add('seleccionado');
+								funcionSeleccionada = {
+									pelicula: card.dataset.pelicula || '',
+									fecha,
+									horario: horarioData.horario,
+									horarioLabel: horarioData.horarioLabel,
+								};
+								actualizarCajaReservaDetalle();
+							});
+							horariosWrap.appendChild(chip);
+						});
+					}
+
+					bloque.appendChild(horariosWrap);
+					lista.appendChild(bloque);
+				});
+			}
+
+			document.getElementById('modal-detalle-pelicula-overlay').classList.add('active');
 		}
 
-		async function confirmarReserva() {
-			if (!peliculaSeleccionada) {
+		async function reservarDesdeDetalle() {
+			if (!funcionSeleccionada) {
+				return;
+			}
+			if (!puedeReservar) {
+				alert('Debes ingresar con una cuenta Cliente para reservar entradas.');
 				return;
 			}
 
 			const data = new FormData();
-			data.append('pelicula', peliculaSeleccionada);
+			data.append('pelicula', funcionSeleccionada.pelicula);
+			data.append('fecha_funcion', funcionSeleccionada.fecha);
+			data.append('horario_funcion', funcionSeleccionada.horario);
 
 			const response = await fetch('{% url "reservar_entrada" %}', {
 				method: 'POST',
@@ -858,8 +1114,8 @@
 
 			const reserva = payload.reserva;
 			reservaActual = reserva;
-			document.getElementById('modal-reserva-overlay').classList.remove('active');
-			alert(`Reserva confirmada para ${reserva.pelicula}. Puedes verla en Entradas Reservadas.`);
+			document.getElementById('modal-detalle-pelicula-overlay').classList.remove('active');
+			alert(`Reserva confirmada para ${reserva.pelicula} - ${reserva.fecha_funcion} - ${reserva.horario_funcion}. Puedes verla en Entradas Reservadas.`);
 		}
 
 		function descargarReserva() {
@@ -871,6 +1127,8 @@
 				'Boleto CineTeatro',
 				`Usuario: ${reservaActual.usuario}`,
 				`Pelicula: ${reservaActual.pelicula}`,
+				`Fecha: ${reservaActual.fecha_funcion || '-'}`,
+				`Horario: ${reservaActual.horario_funcion || '-'}`,
 				`Entrada: #${reservaActual.numero_entrada}`,
 				`Precio: $${reservaActual.precio}`,
 			].join('\n');
@@ -889,6 +1147,8 @@
 			reservaActual = {
 				usuario,
 				pelicula: reserva.pelicula,
+				fecha_funcion: reserva.fecha_funcion,
+				horario_funcion: reserva.horario_funcion,
 				numero_entrada: reserva.numero_entrada,
 				precio: reserva.precio,
 			};
@@ -903,6 +1163,7 @@
 			reservaActual = reserva;
 			document.getElementById('ticket-pelicula').textContent = `Película: ${reserva.pelicula}`;
 			document.getElementById('ticket-usuario').textContent = `Usuario: ${usuario}`;
+			document.getElementById('ticket-fecha-horario').textContent = `Fecha: ${reserva.fecha_funcion || '-'} | Horario: ${reserva.horario_funcion || '-'}`;
 			document.getElementById('ticket-numero').textContent = `Entrada: #${reserva.numero_entrada}`;
 			document.getElementById('ticket-precio').textContent = `Precio: $${reserva.precio}`;
 			document.getElementById('modal-ticket-overlay').classList.add('active');
@@ -937,11 +1198,15 @@
 				ticket.className = 'ticket';
 				ticket.dataset.reservaId = reserva.id;
 				ticket.dataset.pelicula = reserva.pelicula;
+				ticket.dataset.fechaFuncion = reserva.fecha_funcion || '';
+				ticket.dataset.horarioFuncion = reserva.horario_funcion || '';
 				ticket.dataset.numeroEntrada = reserva.numero_entrada;
 				ticket.dataset.precio = reserva.precio;
 				ticket.innerHTML = `
 					<h4>${reserva.pelicula}</h4>
 					<p><strong>Usuario:</strong> ${payload.usuario}</p>
+					<p><strong>Fecha:</strong> ${reserva.fecha_funcion || '-'}</p>
+					<p><strong>Horario:</strong> ${reserva.horario_funcion || '-'}</p>
 					<p><strong>Entrada:</strong> #${reserva.numero_entrada}</p>
 					<p><strong>Precio:</strong> $${reserva.precio}</p>
 					<div class="ticket-acciones">
@@ -993,38 +1258,62 @@
 		});
 
 		document.querySelectorAll('.pelicula-card').forEach((card) => {
-			card.addEventListener('click', () => {
-				if (!puedeReservar) {
+			const hint = card.querySelector('.hint-doble-click');
+			if (hint) {
+				hint.textContent = 'Doble click o mantener presionado para ver detalle completo';
+			}
+
+			let longPressTimer = null;
+			let longPressTriggered = false;
+
+			function cancelarLongPress() {
+				if (longPressTimer) {
+					clearTimeout(longPressTimer);
+					longPressTimer = null;
+				}
+			}
+
+			card.addEventListener('touchstart', (event) => {
+				if (event.touches && event.touches.length > 1) {
 					return;
 				}
-				seleccionarPelicula(card);
+				longPressTriggered = false;
+				cancelarLongPress();
+				longPressTimer = setTimeout(() => {
+					longPressTriggered = true;
+					abrirDetallePelicula(card);
+				}, LONG_PRESS_MS);
+			}, { passive: true });
+
+			card.addEventListener('touchmove', () => {
+				cancelarLongPress();
+			}, { passive: true });
+
+			card.addEventListener('touchcancel', () => {
+				cancelarLongPress();
+			});
+
+			card.addEventListener('touchend', (event) => {
+				cancelarLongPress();
+				if (longPressTriggered) {
+					event.preventDefault();
+				}
+			}, { passive: false });
+
+			card.addEventListener('click', () => {
+				if (longPressTriggered) {
+					longPressTriggered = false;
+					return;
+				}
+				// El click simple ya no reserva; la reserva ahora vive en el modal de detalle.
+			});
+
+			card.addEventListener('dblclick', () => {
+				abrirDetallePelicula(card);
 			});
 		});
 
-		document.getElementById('btn-reservar').addEventListener('click', () => {
-			if (!puedeReservar) {
-				alert('Debes ingresar con una cuenta Cliente para reservar entradas.');
-				return;
-			}
-
-			if (!peliculaSeleccionada) {
-				return;
-			}
-			reservaActual = null;
-			document.getElementById('modal-pelicula').textContent = `Película: ${peliculaSeleccionada}`;
-			document.getElementById('btn-confirmar-reserva').style.display = 'inline-block';
-			document.getElementById('modal-reserva-overlay').classList.add('active');
-		});
-
-		document.getElementById('btn-cerrar-seleccion').addEventListener('click', () => {
-			limpiarSeleccionPelicula();
-		});
-
-		document.getElementById('btn-cancelar-reserva').addEventListener('click', () => {
-			document.getElementById('modal-reserva-overlay').classList.remove('active');
-		});
-
-		document.getElementById('btn-confirmar-reserva').addEventListener('click', confirmarReserva);
+		document.getElementById('btn-reservar-detalle').addEventListener('click', reservarDesdeDetalle);
 		document.getElementById('btn-descargar-ticket').addEventListener('click', descargarReserva);
 		document.getElementById('btn-guardar-ticket').addEventListener('click', guardarReserva);
 		document.getElementById('btn-cerrar-ticket').addEventListener('click', () => {
@@ -1057,6 +1346,8 @@
 				descargarReservaDesdeTicket(
 					{
 						pelicula: ticketDescarga.dataset.pelicula,
+						fecha_funcion: ticketDescarga.dataset.fechaFuncion,
+						horario_funcion: ticketDescarga.dataset.horarioFuncion,
 						numero_entrada: ticketDescarga.dataset.numeroEntrada,
 						precio: ticketDescarga.dataset.precio,
 					},
@@ -1084,6 +1375,8 @@
 			mostrarTicketReserva(
 				{
 					pelicula: ticket.dataset.pelicula,
+					fecha_funcion: ticket.dataset.fechaFuncion,
+					horario_funcion: ticket.dataset.horarioFuncion,
 					numero_entrada: ticket.dataset.numeroEntrada,
 					precio: ticket.dataset.precio,
 				},

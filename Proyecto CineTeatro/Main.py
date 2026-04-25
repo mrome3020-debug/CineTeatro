@@ -6,7 +6,7 @@ from django.http import JsonResponse
 from django.shortcuts import redirect, render
 
 from Salas import salas
-from Horarios import obtener_horarios_disponibles
+from Horarios import obtener_horarios_disponibles, obtener_horario
 from DB import (
 	autenticar_cliente,
 	autenticar_administrador,
@@ -15,6 +15,7 @@ from DB import (
 	es_registro_admin,
 	es_gmail_valido,
 	formatear_fecha_corta,
+	parsear_programacion_emision,
 	obtener_reservas_por_usuario,
 	obtener_peliculas_para_main,
 	obtener_rango_fechas_emision,
@@ -66,22 +67,56 @@ def formatear_duracion_corta(duracion):
 	return f"{valor} h"
 
 
+def formatear_horario_ticket(valor_horario):
+	valor = str(valor_horario or '').strip()
+	if not valor:
+		return ''
+
+	horario = obtener_horario(valor)
+	if horario is not None:
+		return f"{horario.inicio} - {horario.fin}"
+
+	if '(' in valor and ')' in valor:
+		inicio = valor.find('(')
+		fin = valor.find(')', inicio + 1)
+		if fin > inicio:
+			return valor[inicio + 1:fin].strip()
+
+	return valor
+
+
 def main_view(request):
 	usuario_actual = request.session.get('usuario', 'Invitado')
 	rol_actual = request.session.get('rol', '')
 	puede_reservar = rol_actual == 'cliente'
+	horarios_disponibles = obtener_horarios_disponibles()
+	horarios_por_nombre = {horario.nombre: horario for horario in horarios_disponibles}
 	peliculas_raw = obtener_peliculas_para_main(limit=40)
 	peliculas = []
 	for pelicula in peliculas_raw:
 		fecha_inicio, fecha_fin, _ = obtener_rango_fechas_emision(pelicula['Fechas_emision'], pelicula['Fecha_estreno'])
+		programacion = parsear_programacion_emision(pelicula['Programacion_emision'])
+		programacion_detalle = []
+		for fecha, horarios in programacion.items():
+			horarios_formateados = []
+			for nombre_horario in horarios:
+				horario = horarios_por_nombre.get(nombre_horario)
+				if horario is None:
+					horarios_formateados.append({'nombre': nombre_horario, 'inicio': '', 'fin': ''})
+				else:
+					horarios_formateados.append({'nombre': horario.nombre, 'inicio': horario.inicio, 'fin': horario.fin})
+			programacion_detalle.append({'fecha': formatear_fecha_corta(fecha), 'horarios': horarios_formateados})
+
 		peliculas.append(
 			{
 				'nombre': pelicula['Nombre'],
 				'generos': pelicula['Generos'],
+				'clasificacion': pelicula['Clasificacion'],
 				'duracion': formatear_duracion_corta(pelicula['Duracion']),
 				'calificacion': pelicula['Calificacion'],
 				'fecha_estreno': formatear_fecha_corta(fecha_inicio),
 				'fecha_hasta': formatear_fecha_corta(fecha_fin) if fecha_fin and fecha_fin != fecha_inicio else '',
+				'programacion_detalle': programacion_detalle,
 				'portada_src': construir_src_portada(pelicula['Portada'], pelicula['Portada_nombre']),
 			}
 		)
@@ -91,7 +126,7 @@ def main_view(request):
 		'Main.html',
 		{
 			'salas': salas,
-			'horarios': obtener_horarios_disponibles(),
+			'horarios': horarios_disponibles,
 			'peliculas': peliculas,
 			'usuario_actual': usuario_actual,
 			'puede_reservar': puede_reservar,
@@ -108,13 +143,17 @@ def reservar_entrada_web(request):
 		return JsonResponse({'ok': False, 'error': 'Solo los usuarios registrados como Clientes pueden reservar entradas.'}, status=403)
 
 	pelicula = request.POST.get('pelicula', '').strip()
+	fecha_funcion = request.POST.get('fecha_funcion', '').strip()
+	horario_funcion = formatear_horario_ticket(request.POST.get('horario_funcion', '').strip())
 	if not pelicula:
 		return JsonResponse({'ok': False, 'error': 'Debes seleccionar una pelicula.'}, status=400)
+	if not fecha_funcion or not horario_funcion:
+		return JsonResponse({'ok': False, 'error': 'Debes seleccionar fecha y horario de función.'}, status=400)
 
 	usuario = request.session.get('usuario', 'Invitado')
-	reserva = crear_reserva_entrada(usuario, pelicula, precio=200)
+	reserva = crear_reserva_entrada(usuario, pelicula, fecha_funcion=fecha_funcion, horario_funcion=horario_funcion, precio=200)
 	if reserva is None:
-		return JsonResponse({'ok': False, 'error': 'No hay entradas disponibles para esta pelicula.'}, status=409)
+		return JsonResponse({'ok': False, 'error': 'No hay entradas disponibles para esta función.'}, status=409)
 
 	return JsonResponse({'ok': True, 'reserva': reserva})
 
@@ -125,6 +164,8 @@ def entradas_reservadas_web(request):
 
 	usuario = request.session.get('usuario', 'Invitado')
 	reservas = obtener_reservas_por_usuario(usuario)
+	for reserva in reservas:
+		reserva['horario_funcion'] = formatear_horario_ticket(reserva.get('horario_funcion'))
 	return JsonResponse({'ok': True, 'usuario': usuario, 'reservas': reservas})
 
 
