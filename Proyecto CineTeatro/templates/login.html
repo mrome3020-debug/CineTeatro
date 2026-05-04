@@ -70,10 +70,7 @@
             text-align: center;
         }
         .tabs {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            margin-bottom: 14px;
+            display: none;
         }
         .tab-button {
             padding: 9px;
@@ -94,6 +91,24 @@
         }
         .tab-content.active {
             display: block;
+        }
+        .login-role-tabs {
+            display: none;
+        }
+        .role-button {
+            padding: 8px;
+            border: 1px solid #b8c7db;
+            border-radius: 6px;
+            background: #ffffff;
+            color: rgb(3, 9, 46);
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .role-button.active {
+            background: rgb(3, 9, 46);
+            color: #ffffff;
+            border-color: rgb(3, 9, 46);
         }
         .form-group {
             margin-bottom: 15px;
@@ -153,17 +168,36 @@
             .form-container h2 {
                 font-size: 20px;
             }
+
+            .tabs {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-height: 700px) {
+            body {
+                align-items: flex-start;
+                padding: 10px;
+            }
+
+            .container {
+                margin: 8px 0;
+            }
+
+            .message,
+            .form-container {
+                padding: 16px;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="message">
-            <p>Solo los usuarios registrados podran reservar entradas.</p>
+            <p id="mensaje-lateral">El ingreso está reservado exclusivamente para Administradores autorizados.</p>
         </div>
         <div class="form-container">
             <h2>Acceso al sistema</h2>
-            <p class="panel-subtitle">Inicia sesión o crea una cuenta. Si el usuario termina en punto y la contraseña es Admin123, la cuenta será Administrador.</p>
             {% if error %}
             <div class="error">{{ error }}</div>
             {% endif %}
@@ -174,74 +208,25 @@
             <div class="success">{{ registro_ok }}</div>
             {% endif %}
 
-            <div class="tabs">
-                <button type="button" id="tab-login-btn" class="tab-button active" onclick="mostrarTab('login')">Ingresar</button>
-                <button type="button" id="tab-register-btn" class="tab-button" onclick="mostrarTab('register')">Registrarse</button>
-            </div>
-
             <div id="tab-login" class="tab-content active">
                 <form action="{% url 'validar_admin' %}" method="post">
                     {% csrf_token %}
+                    <input type="hidden" id="tipo_login" name="tipo_login" value="admin">
                     <div class="form-group">
-                        <label for="usuario">Usuario o Gmail:</label>
+                        <label for="usuario" id="usuario-label">Usuario o Gmail de Admin:</label>
                         <input type="text" id="usuario" name="usuario" required>
                     </div>
                     <div class="form-group">
-                        <label for="contraseña">Contraseña:</label>
+                        <label for="contraseña" id="contrasena-label">Contraseña de Admin:</label>
                         <input type="password" id="contraseña" name="contraseña" required>
                     </div>
                     <button type="submit">Ingresar</button>
-                </form>
-            </div>
-
-            <div id="tab-register" class="tab-content">
-                <form action="{% url 'registrar_cliente' %}" method="post">
-                    {% csrf_token %}
-                    <div class="form-group">
-                        <label for="gmail">Gmail:</label>
-                        <input type="email" id="gmail" name="gmail" placeholder="ejemplo@gmail.com" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="nuevo_usuario">Nombre de usuario:</label>
-                        <input type="text" id="nuevo_usuario" name="nuevo_usuario" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="nueva_contraseña">Contraseña:</label>
-                        <input type="password" id="nueva_contraseña" name="nueva_contraseña" minlength="8" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="confirmar_contraseña">Confirmación de contraseña:</label>
-                        <input type="password" id="confirmar_contraseña" name="confirmar_contraseña" minlength="8" required>
-                    </div>
-                    <button type="submit">Crear cuenta</button>
                 </form>
             </div>
         </div>
     </div>
 
     <script>
-        function mostrarTab(tab) {
-            const loginTab = document.getElementById('tab-login');
-            const registerTab = document.getElementById('tab-register');
-            const loginBtn = document.getElementById('tab-login-btn');
-            const registerBtn = document.getElementById('tab-register-btn');
-
-            loginTab.classList.remove('active');
-            registerTab.classList.remove('active');
-            loginBtn.classList.remove('active');
-            registerBtn.classList.remove('active');
-
-            if (tab === 'login') {
-                loginTab.classList.add('active');
-                loginBtn.classList.add('active');
-                return;
-            }
-
-            registerTab.classList.add('active');
-            registerBtn.classList.add('active');
-        }
-
-        mostrarTab('{{ active_tab|default:"login" }}');
     </script>
 </body>
 </html>

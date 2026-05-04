@@ -1,2 +1,7 @@
 Django==6.0.3
-SQLite3==0.0.1
+virtualenv==20.31.2
+
+# Base de datos: sqlite3 es parte de la libreria estandar de Python (no se instala con pip).
+# Frontend usado en plantillas (sin npm):
+# JavaScript: ECMAScript 2023 (Vanilla JS)
+# CSS: CSS3

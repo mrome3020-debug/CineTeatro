@@ -12,6 +12,44 @@ from Horarios import obtener_horarios_disponibles
 
 HORARIOS_VALIDOS = tuple(horario.nombre for horario in obtener_horarios_disponibles())
 HORARIOS_ORDEN = {nombre: indice for indice, nombre in enumerate(HORARIOS_VALIDOS)}
+HORARIOS_POR_NOMBRE = {horario.nombre: horario for horario in obtener_horarios_disponibles()}
+PATRON_HORA_15M = re.compile(r"(?:[01]\d|2[0-3]):(?:00|15|30|45)$")
+
+
+def es_horario_personalizado_valido(valor):
+    return bool(PATRON_HORA_15M.fullmatch(str(valor or '').strip()))
+
+
+def _minutos_hora(valor_hora):
+    horas, minutos = str(valor_hora).split(':')
+    return int(horas) * 60 + int(minutos)
+
+
+def _intervalo_horario(horario):
+    valor = str(horario or '').strip()
+    if valor in HORARIOS_POR_NOMBRE:
+        horario_fijo = HORARIOS_POR_NOMBRE[valor]
+        return _minutos_hora(horario_fijo.inicio), _minutos_hora(horario_fijo.fin)
+    if es_horario_personalizado_valido(valor):
+        inicio = _minutos_hora(valor)
+        return inicio, inicio + 15
+    return None
+
+
+def _intervalos_se_superponen(intervalo_a, intervalo_b):
+    inicio_a, fin_a = intervalo_a
+    inicio_b, fin_b = intervalo_b
+    return inicio_a < fin_b and inicio_b < fin_a
+
+
+def ordenar_horarios(horarios):
+    def clave(horario):
+        intervalo = _intervalo_horario(horario)
+        if not intervalo:
+            return (2, str(horario))
+        return (0, intervalo[0], intervalo[1], str(horario))
+
+    return sorted(horarios, key=clave)
 
 
 class PeliculaBaseForm(forms.Form):
@@ -120,24 +158,6 @@ def obtener_conexion(row_factory=False):
     return conn
 
 
-def ensure_clientes_schema():
-    conn = obtener_conexion()
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS CLIENTES (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            gmail TEXT NOT NULL UNIQUE,
-            usuario TEXT NOT NULL UNIQUE,
-            password_hash TEXT NOT NULL,
-            creado_en TEXT NOT NULL
-        )
-        """
-    )
-    conn.commit()
-    conn.close()
-
-
 def ensure_administradores_schema():
     conn = obtener_conexion()
     cursor = conn.cursor()
@@ -180,33 +200,27 @@ def es_registro_admin(usuario, contrasena):
 
 
 def usuario_ya_registrado(usuario):
-    ensure_clientes_schema()
     ensure_administradores_schema()
 
     usuario_normalizado = (usuario or '').strip()
     conn = obtener_conexion()
     cursor = conn.cursor()
-    cursor.execute('SELECT 1 FROM CLIENTES WHERE LOWER(usuario) = LOWER(?)', (usuario_normalizado,))
-    existe_cliente = cursor.fetchone() is not None
     cursor.execute('SELECT 1 FROM ADMINISTRADORES WHERE LOWER(usuario) = LOWER(?)', (usuario_normalizado,))
     existe_admin = cursor.fetchone() is not None
     conn.close()
-    return existe_cliente or existe_admin
+    return existe_admin
 
 
 def gmail_ya_registrado(gmail):
-    ensure_clientes_schema()
     ensure_administradores_schema()
 
     gmail_normalizado = (gmail or '').strip().lower()
     conn = obtener_conexion()
     cursor = conn.cursor()
-    cursor.execute('SELECT 1 FROM CLIENTES WHERE gmail = ?', (gmail_normalizado,))
-    existe_cliente = cursor.fetchone() is not None
     cursor.execute('SELECT 1 FROM ADMINISTRADORES WHERE LOWER(COALESCE(gmail, "")) = ?', (gmail_normalizado,))
     existe_admin = cursor.fetchone() is not None
     conn.close()
-    return existe_cliente or existe_admin
+    return existe_admin
 
 
 def registrar_administrador(gmail, usuario, contrasena, nombre=None):
@@ -268,177 +282,6 @@ def autenticar_administrador(usuario, contrasena):
         return None
 
     return dict(admin)
-
-
-def registrar_cliente(gmail, usuario, contrasena):
-    ensure_clientes_schema()
-
-    gmail_normalizado = (gmail or '').strip().lower()
-    usuario_normalizado = (usuario or '').strip()
-    password_hash = make_password(contrasena)
-
-    if gmail_ya_registrado(gmail_normalizado):
-        return False, 'El Gmail ya está registrado.'
-
-    if usuario_ya_registrado(usuario_normalizado):
-        return False, 'El nombre de usuario ya está en uso.'
-
-    conn = obtener_conexion()
-    cursor = conn.cursor()
-
-    cursor.execute(
-        'INSERT INTO CLIENTES (gmail, usuario, password_hash, creado_en) VALUES (?, ?, ?, ?)',
-        (gmail_normalizado, usuario_normalizado, password_hash, datetime.now().isoformat(timespec='seconds')),
-    )
-    conn.commit()
-    conn.close()
-    return True, None
-
-
-def registrar_cliente_con_hash(gmail, usuario, password_hash):
-    ensure_clientes_schema()
-
-    gmail_normalizado = (gmail or '').strip().lower()
-    usuario_normalizado = (usuario or '').strip()
-
-    if gmail_ya_registrado(gmail_normalizado):
-        return False, 'El Gmail ya está registrado.'
-
-    if usuario_ya_registrado(usuario_normalizado):
-        return False, 'El nombre de usuario ya está en uso.'
-
-    conn = obtener_conexion()
-    cursor = conn.cursor()
-
-    cursor.execute(
-        'INSERT INTO CLIENTES (gmail, usuario, password_hash, creado_en) VALUES (?, ?, ?, ?)',
-        (gmail_normalizado, usuario_normalizado, password_hash, datetime.now().isoformat(timespec='seconds')),
-    )
-    conn.commit()
-    conn.close()
-    return True, None
-
-
-def autenticar_cliente(identificador, contrasena):
-    ensure_clientes_schema()
-
-    valor = (identificador or '').strip()
-    valor_lower = valor.lower()
-
-    conn = obtener_conexion(row_factory=True)
-    cursor = conn.cursor()
-    cursor.execute(
-        'SELECT id, gmail, usuario, password_hash FROM CLIENTES WHERE LOWER(usuario) = ? OR gmail = ?',
-        (valor_lower, valor_lower),
-    )
-    cliente = cursor.fetchone()
-    conn.close()
-
-    if not cliente:
-        return None
-
-    if not check_password(contrasena, cliente['password_hash']):
-        return None
-
-    return dict(cliente)
-
-
-def ensure_reservas_schema():
-    conn = obtener_conexion()
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS RESERVAS (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            usuario TEXT NOT NULL,
-            pelicula TEXT NOT NULL,
-            fecha_funcion TEXT,
-            horario_funcion TEXT,
-            numero_entrada INTEGER NOT NULL,
-            precio INTEGER NOT NULL,
-            creado_en TEXT NOT NULL
-        )
-        """
-    )
-
-    cursor.execute("PRAGMA table_info(RESERVAS)")
-    columnas = {col[1] for col in cursor.fetchall()}
-    if 'fecha_funcion' not in columnas:
-        cursor.execute("ALTER TABLE RESERVAS ADD COLUMN fecha_funcion TEXT")
-    if 'horario_funcion' not in columnas:
-        cursor.execute("ALTER TABLE RESERVAS ADD COLUMN horario_funcion TEXT")
-
-    conn.commit()
-    conn.close()
-
-
-def crear_reserva_entrada(usuario, pelicula, fecha_funcion='', horario_funcion='', precio=200):
-    ensure_reservas_schema()
-
-    conn = obtener_conexion(row_factory=True)
-    cursor = conn.cursor()
-
-    cursor.execute(
-        'SELECT numero_entrada FROM RESERVAS WHERE pelicula = ? AND COALESCE(fecha_funcion, "") = ? AND COALESCE(horario_funcion, "") = ?',
-        (pelicula, str(fecha_funcion or '').strip(), str(horario_funcion or '').strip()),
-    )
-    usados = {int(fila['numero_entrada']) for fila in cursor.fetchall()}
-    disponibles = [numero for numero in range(1, 301) if numero not in usados]
-
-    if not disponibles:
-        conn.close()
-        return None
-
-    numero = random.choice(disponibles)
-    creado_en = datetime.now().isoformat(timespec='seconds')
-
-    cursor.execute(
-        'INSERT INTO RESERVAS (usuario, pelicula, fecha_funcion, horario_funcion, numero_entrada, precio, creado_en) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        (usuario, pelicula, str(fecha_funcion or '').strip(), str(horario_funcion or '').strip(), numero, precio, creado_en),
-    )
-    conn.commit()
-    conn.close()
-
-    return {
-        'usuario': usuario,
-        'pelicula': pelicula,
-        'fecha_funcion': str(fecha_funcion or '').strip(),
-        'horario_funcion': str(horario_funcion or '').strip(),
-        'numero_entrada': numero,
-        'precio': precio,
-        'creado_en': creado_en,
-    }
-
-
-def obtener_reservas_por_usuario(usuario):
-    ensure_reservas_schema()
-
-    conn = obtener_conexion(row_factory=True)
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        SELECT id, pelicula, fecha_funcion, horario_funcion, numero_entrada, precio, creado_en
-        FROM RESERVAS
-        WHERE usuario = ?
-        ORDER BY id DESC
-        """,
-        (usuario,),
-    )
-    reservas = [dict(fila) for fila in cursor.fetchall()]
-    conn.close()
-    return reservas
-
-
-def cancelar_reserva_usuario(usuario, reserva_id):
-    ensure_reservas_schema()
-
-    conn = obtener_conexion()
-    cursor = conn.cursor()
-    cursor.execute('DELETE FROM RESERVAS WHERE id = ? AND usuario = ?', (reserva_id, usuario))
-    eliminadas = cursor.rowcount
-    conn.commit()
-    conn.close()
-    return eliminadas > 0
 
 
 def _convertir_fecha_para_comparar(fecha_dd_mm_yyyy):
@@ -511,13 +354,15 @@ def parsear_programacion_emision(valor):
         vistos = set()
         for candidato in candidatos:
             horario = str(candidato).strip()
-            if horario not in HORARIOS_VALIDOS or horario in vistos:
+            if horario in vistos:
+                continue
+            if horario not in HORARIOS_VALIDOS and not es_horario_personalizado_valido(horario):
                 continue
             vistos.add(horario)
             horarios.append(horario)
 
         if horarios:
-            programacion[fecha] = sorted(horarios, key=lambda nombre: HORARIOS_ORDEN[nombre])
+            programacion[fecha] = ordenar_horarios(horarios)
 
     return dict(sorted(programacion.items(), key=lambda item: _convertir_fecha_para_comparar(item[0])))
 
@@ -571,10 +416,18 @@ def validar_programacion_emision(programacion_emision, pelicula_id=None):
 
     ocupacion = obtener_ocupacion_horarios(excluir_pelicula_id=pelicula_id)
     for fecha, horarios in programacion.items():
+        ocupacion_fecha = ocupacion.get(fecha, {})
         for horario in horarios:
-            conflicto = ocupacion.get(fecha, {}).get(horario)
-            if conflicto:
-                return False, f"El {fecha} en {horario} ya está asignado a {conflicto['pelicula_nombre']}."
+            intervalo_nuevo = _intervalo_horario(horario)
+            if not intervalo_nuevo:
+                return False, f"Horario inválido: {horario}."
+
+            for horario_ocupado, conflicto in ocupacion_fecha.items():
+                intervalo_ocupado = _intervalo_horario(horario_ocupado)
+                if not intervalo_ocupado:
+                    continue
+                if _intervalos_se_superponen(intervalo_nuevo, intervalo_ocupado):
+                    return False, f"Fecha y Hora ya ocupadas por ({conflicto['pelicula_nombre']})"
 
     return True, None
 
@@ -669,9 +522,66 @@ def ensure_fechas_emision_schema():
     conn.close()
 
 
+
+def ensure_espectaculos_schema():
+    """Agrega columnas a PELICULAS para soportar diferentes tipos de espectáculos."""
+    conn = obtener_conexion()
+    cursor = conn.cursor()
+	
+    cursor.execute("PRAGMA table_info(PELICULAS)")
+    columnas = {col[1] for col in cursor.fetchall()}
+	
+    # Agregar columna tipo_espectaculo (película, show, teatro, exposición)
+    if 'tipo_espectaculo' not in columnas:
+        cursor.execute("ALTER TABLE PELICULAS ADD COLUMN tipo_espectaculo TEXT DEFAULT 'película'")
+	
+    # Para Shows: artista/presentador
+    if 'artista_show' not in columnas:
+        cursor.execute("ALTER TABLE PELICULAS ADD COLUMN artista_show TEXT")
+	
+    # Para Exposición: tema/descripción adicional y responsable
+    if 'tema_exposicion' not in columnas:
+        cursor.execute("ALTER TABLE PELICULAS ADD COLUMN tema_exposicion TEXT")
+	
+    if 'responsable' not in columnas:
+        cursor.execute("ALTER TABLE PELICULAS ADD COLUMN responsable TEXT")
+	
+    # Para Teatro: ambientación histórica/temporal
+    if 'ambientacion_teatro' not in columnas:
+        cursor.execute("ALTER TABLE PELICULAS ADD COLUMN ambientacion_teatro TEXT")
+	
+    # Crear tabla TIPO_ESPECTACULO si no existe
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS TIPO_ESPECTACULO (
+            id INTEGER PRIMARY KEY,
+            nombre TEXT NOT NULL UNIQUE,
+            descripcion TEXT
+        )
+        """
+    )
+	
+    # Insertar tipos de espectáculos si no existen
+    tipos = [
+        ('película', 'Películas de cine'),
+        ('show', 'Shows y presentaciones en vivo'),
+        ('teatro', 'Obras de teatro'),
+        ('exposición', 'Exposiciones y exhibiciones'),
+    ]
+	
+    for nombre, descripcion in tipos:
+        cursor.execute(
+            "INSERT OR IGNORE INTO TIPO_ESPECTACULO (nombre, descripcion) VALUES (?, ?)",
+            (nombre, descripcion),
+        )
+	
+    conn.commit()
+    conn.close()
+
+
 def obtener_programacion_pelicula(pelicula_id):
     ensure_fechas_emision_schema()
-
+    ensure_espectaculos_schema()
     conn = obtener_conexion(row_factory=True)
     cursor = conn.cursor()
     cursor.execute(
@@ -693,7 +603,7 @@ def obtener_peliculas_para_main(limit=10):
     cursor = conn.cursor()
     cursor.execute(
         """
-        SELECT Nombre, Generos, Clasificacion, Duracion, Calificacion, Fecha_estreno, Fechas_emision, Programacion_emision, Portada, Portada_nombre
+        SELECT rowid, Nombre, Proveedor, Generos, Clasificacion, Duracion, Descripcion, Calificacion, Fecha_estreno, Fechas_emision, Programacion_emision, Portada, Portada_nombre, artista_show, ambientacion_teatro, COALESCE(tipo_espectaculo, 'película') AS tipo_espectaculo
         FROM PELICULAS
         LIMIT ?
         """,
@@ -954,3 +864,187 @@ def inicializar_db():
 
 if __name__ == "__main__":
     inicializar_db()
+
+
+class ShowCreateForm(forms.Form):
+    CLASIFICACION_MPA_CHOICES = [
+        ('G', 'G - Audiencias generales'),
+        ('PG', 'PG - Guía parental sugerida'),
+        ('PG-13', 'PG-13 - Menores de 13 con advertencia'),
+        ('R', 'R - Restringida'),
+        ('NC-17', 'NC-17 - Solo adultos'),
+    ]
+
+    nombre = forms.CharField(max_length=120, label='Nombre del Show')
+    artista_show = forms.CharField(max_length=200, required=False, label='Artista/Presentador')
+    tema = forms.CharField(max_length=200)
+    clasificacion = forms.ChoiceField(choices=CLASIFICACION_MPA_CHOICES)
+    duracion = forms.CharField(max_length=5)
+    descripcion = forms.CharField(max_length=1500)
+    fechas_emision = forms.CharField(max_length=1000, required=False)
+    programacion_emision = forms.CharField(max_length=20000, required=False)
+    portada = forms.FileField(
+        required=False,
+        validators=[FileExtensionValidator(allowed_extensions=['png', 'jpg', 'jpeg', 'gif', 'webp'])],
+    )
+
+    def clean_duracion(self):
+        duracion = self.cleaned_data['duracion'].strip()
+        if not re.fullmatch(r"\d{1,2}:[0-5]\d", duracion):
+            raise forms.ValidationError('La duración debe tener formato HH:MM, por ejemplo 02:15.')
+        horas, minutos = duracion.split(':')
+        return f"{int(horas):02d}:{minutos}"
+
+    def clean_tema(self):
+        valor = str(self.cleaned_data['tema']).strip()
+        if not valor:
+            raise forms.ValidationError('El tema es obligatorio para Shows.')
+        return valor
+
+    def clean_fechas_emision(self):
+        fechas = parsear_fechas_emision(self.cleaned_data['fechas_emision'])
+        return fechas
+
+    def clean_programacion_emision(self):
+        programacion = parsear_programacion_emision(self.cleaned_data['programacion_emision'])
+        return programacion
+
+    def clean(self):
+        cleaned_data = super().clean()
+        programacion = cleaned_data.get('programacion_emision')
+        if not programacion:
+            self.add_error('programacion_emision', 'Debes seleccionar al menos un horario en una fecha de función.')
+            return cleaned_data
+
+        ok, mensaje = validar_programacion_emision(programacion)
+        if not ok:
+            self.add_error('programacion_emision', mensaje)
+            return cleaned_data
+
+        cleaned_data['fechas_emision'] = fechas_desde_programacion_emision(programacion)
+        return cleaned_data
+
+
+class ShowEditForm(ShowCreateForm):
+    id = forms.IntegerField(min_value=1)
+    eliminar_portada = forms.BooleanField(required=False)
+
+
+class TeatroCreateForm(forms.Form):
+    CLASIFICACION_MPA_CHOICES = [
+        ('G', 'G - Audiencias generales'),
+        ('PG', 'PG - Guía parental sugerida'),
+        ('PG-13', 'PG-13 - Menores de 13 con advertencia'),
+        ('R', 'R - Restringida'),
+        ('NC-17', 'NC-17 - Solo adultos'),
+    ]
+
+    nombre = forms.CharField(max_length=120, label='Nombre de la Obra de Teatro')
+    artista_show = forms.CharField(max_length=200, required=False, label='Elenco/Director')
+    tema = forms.CharField(max_length=200, label='Género/Estilo de Teatro')
+    ambientacion = forms.CharField(max_length=300, required=False, label='Ambientación Histórica/Temporal')
+    clasificacion = forms.ChoiceField(choices=CLASIFICACION_MPA_CHOICES)
+    duracion = forms.CharField(max_length=5)
+    descripcion = forms.CharField(max_length=1500)
+    fechas_emision = forms.CharField(max_length=1000, required=False)
+    programacion_emision = forms.CharField(max_length=20000, required=False)
+    portada = forms.FileField(
+        required=False,
+        validators=[FileExtensionValidator(allowed_extensions=['png', 'jpg', 'jpeg', 'gif', 'webp'])],
+    )
+
+    def clean_duracion(self):
+        duracion = self.cleaned_data['duracion'].strip()
+        if not re.fullmatch(r"\d{1,2}:[0-5]\d", duracion):
+            raise forms.ValidationError('La duración debe tener formato HH:MM, por ejemplo 02:15.')
+        horas, minutos = duracion.split(':')
+        return f"{int(horas):02d}:{minutos}"
+
+    def clean_tema(self):
+        valor = str(self.cleaned_data['tema']).strip()
+        if not valor:
+            raise forms.ValidationError('El género/estilo de teatro es obligatorio.')
+        return valor
+
+    def clean_fechas_emision(self):
+        fechas = parsear_fechas_emision(self.cleaned_data['fechas_emision'])
+        return fechas
+
+    def clean_programacion_emision(self):
+        programacion = parsear_programacion_emision(self.cleaned_data['programacion_emision'])
+        return programacion
+
+    def clean(self):
+        cleaned_data = super().clean()
+        programacion = cleaned_data.get('programacion_emision')
+        if not programacion:
+            self.add_error('programacion_emision', 'Debes seleccionar al menos un horario en una fecha de función.')
+            return cleaned_data
+
+        ok, mensaje = validar_programacion_emision(programacion)
+        if not ok:
+            self.add_error('programacion_emision', mensaje)
+            return cleaned_data
+
+        cleaned_data['fechas_emision'] = fechas_desde_programacion_emision(programacion)
+        return cleaned_data
+
+
+class TeatroEditForm(TeatroCreateForm):
+    id = forms.IntegerField(min_value=1)
+    eliminar_portada = forms.BooleanField(required=False)
+
+
+class ExposicionCreateForm(forms.Form):
+    nombre = forms.CharField(max_length=120, label='Nombre de la Exposición')
+    tema = forms.CharField(max_length=500, label='Tema de la Exposición')
+    artista_show = forms.CharField(max_length=200, required=False, label='Bajo dirección de')
+    duracion = forms.CharField(max_length=5)
+    descripcion = forms.CharField(max_length=1500)
+    fechas_emision = forms.CharField(max_length=1000, required=False)
+    programacion_emision = forms.CharField(max_length=20000, required=False)
+    portada = forms.FileField(
+        required=False,
+        validators=[FileExtensionValidator(allowed_extensions=['png', 'jpg', 'jpeg', 'gif', 'webp'])],
+    )
+
+    def clean_duracion(self):
+        duracion = self.cleaned_data['duracion'].strip()
+        if not re.fullmatch(r"\d{1,2}:[0-5]\d", duracion):
+            raise forms.ValidationError('La duración debe tener formato HH:MM, por ejemplo 02:15.')
+        horas, minutos = duracion.split(':')
+        return f"{int(horas):02d}:{minutos}"
+
+    def clean_tema(self):
+        valor = str(self.cleaned_data['tema']).strip()
+        if not valor:
+            raise forms.ValidationError('El tema es obligatorio para Exposiciones.')
+        return valor
+
+    def clean_fechas_emision(self):
+        fechas = parsear_fechas_emision(self.cleaned_data['fechas_emision'])
+        return fechas
+
+    def clean_programacion_emision(self):
+        programacion = parsear_programacion_emision(self.cleaned_data['programacion_emision'])
+        return programacion
+
+    def clean(self):
+        cleaned_data = super().clean()
+        programacion = cleaned_data.get('programacion_emision')
+        if not programacion:
+            self.add_error('programacion_emision', 'Debes seleccionar al menos un horario en una fecha de función.')
+            return cleaned_data
+
+        ok, mensaje = validar_programacion_emision(programacion)
+        if not ok:
+            self.add_error('programacion_emision', mensaje)
+            return cleaned_data
+
+        cleaned_data['fechas_emision'] = fechas_desde_programacion_emision(programacion)
+        return cleaned_data
+
+
+class ExposicionEditForm(ExposicionCreateForm):
+    id = forms.IntegerField(min_value=1)
+    eliminar_portada = forms.BooleanField(required=False)

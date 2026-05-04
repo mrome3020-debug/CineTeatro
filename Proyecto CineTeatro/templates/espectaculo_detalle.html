@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ espectaculo.nombre }} - Detalle</title>
+    <style>
+        :root {
+            --bg-1: #eaf6ff;
+            --bg-2: #c9e6f8;
+            --ink-1: #0f2d43;
+            --ink-2: #35586f;
+            --line-1: #b8d5e8;
+            --card: #ffffff;
+            --tag-bg: #f2f9ff;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            color: var(--ink-1);
+            background:
+                radial-gradient(circle at 14% 10%, #f6fbff 0%, rgba(246, 251, 255, 0) 34%),
+                linear-gradient(170deg, var(--bg-1) 0%, var(--bg-2) 72%, #ffffff 100%);
+            min-height: 100vh;
+            padding: 24px 14px 36px;
+        }
+
+        .contenedor {
+            max-width: 1120px;
+            margin: 0 auto;
+            background: var(--card);
+            border: 1px solid var(--line-1);
+            border-radius: 16px;
+            box-shadow: 0 16px 34px rgba(25, 76, 107, 0.18);
+            padding: 20px;
+        }
+
+        .titulo {
+            margin: 0 0 18px;
+            font-size: 2rem;
+            line-height: 1.15;
+            color: var(--ink-1);
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 20px;
+            align-items: start;
+        }
+
+        .portada-panel {
+            width: 100%;
+            max-width: 300px;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 4px solid #001a4d;
+            background: #e7f4ff;
+            box-shadow: 0 10px 22px rgba(15, 45, 67, 0.2);
+        }
+
+        .portada-panel.tipo-show {
+            border-color: #d4af37;
+        }
+
+        .portada-panel.tipo-teatro {
+            border-color: #ff8c00;
+        }
+
+        .portada-panel.tipo-exposicion {
+            border-color: #8b00ff;
+        }
+
+        .portada {
+            width: 100%;
+            aspect-ratio: 11 / 16;
+            object-fit: cover;
+            object-position: center;
+            display: block;
+        }
+
+        .portada-placeholder {
+            width: 100%;
+            aspect-ratio: 11 / 16;
+            display: grid;
+            place-items: center;
+            color: #55758a;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            background: #eef8ff;
+        }
+
+        .ficha {
+            display: grid;
+            gap: 10px;
+        }
+
+        .item {
+            border: 1px solid var(--line-1);
+            border-radius: 10px;
+            background: var(--tag-bg);
+            padding: 10px 12px;
+            display: grid;
+            gap: 4px;
+        }
+
+        .item strong {
+            color: var(--ink-1);
+            font-size: 0.94rem;
+        }
+
+        .item span {
+            color: var(--ink-2);
+            font-size: 0.95rem;
+        }
+
+        .programacion {
+            display: grid;
+            gap: 8px;
+        }
+
+        .programacion-dia {
+            border: 1px solid var(--line-1);
+            border-radius: 10px;
+            background: #ffffff;
+            padding: 10px 12px;
+        }
+
+        .programacion-dia h3 {
+            margin: 0 0 8px;
+            font-size: 1rem;
+        }
+
+        .programacion-dia ul {
+            margin: 0;
+            padding-left: 18px;
+            color: var(--ink-2);
+        }
+
+        .volver {
+            margin-top: 16px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 42px;
+            padding: 0 14px;
+            border-radius: 999px;
+            text-decoration: none;
+            font-weight: 700;
+            color: #ffffff;
+            background: #2e7cad;
+        }
+
+        .volver:hover {
+            background: #1f628d;
+        }
+
+        @media (max-width: 860px) {
+            .layout {
+                grid-template-columns: 1fr;
+            }
+
+            .portada-panel {
+                max-width: 340px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="contenedor">
+        <h1 class="titulo">{{ espectaculo.nombre }}</h1>
+
+        <div class="layout">
+            <div class="portada-panel tipo-{{ espectaculo.tipo_espectaculo }}">
+                {% if espectaculo.portada_src %}
+                <img class="portada" src="{{ espectaculo.portada_src }}" alt="Portada de {{ espectaculo.nombre }}">
+                {% else %}
+                <div class="portada-placeholder">SIN PORTADA</div>
+                {% endif %}
+            </div>
+
+            <section class="ficha" aria-label="Características del espectáculo">
+                <div class="item"><strong>Tipo de espectáculo</strong><span>{{ espectaculo.tipo_espectaculo|title }}</span></div>
+                {% if espectaculo.tipo_espectaculo == 'show' %}
+                <div class="item"><strong>Tema</strong><span>{{ espectaculo.generos }}</span></div>
+                {% if espectaculo.artista_show %}
+                <div class="item"><strong>Artista</strong><span>{{ espectaculo.artista_show }}</span></div>
+                {% endif %}
+                <div class="item"><strong>Clasificación</strong><span>{{ espectaculo.clasificacion }}</span></div>
+                <div class="item"><strong>Duración</strong><span>{{ espectaculo.duracion }}</span></div>
+                <div class="item"><strong>Fecha de estreno</strong><span>{{ espectaculo.fecha_estreno }}</span></div>
+                <div class="item"><strong>Disponible hasta</strong><span>{% if espectaculo.fecha_hasta %}{{ espectaculo.fecha_hasta }}{% else %}Misma fecha de estreno{% endif %}</span></div>
+                {% if espectaculo.descripcion %}
+                <div class="item"><strong>Descripción</strong><span>{{ espectaculo.descripcion }}</span></div>
+                {% endif %}
+
+                {% elif espectaculo.tipo_espectaculo == 'teatro' %}
+                <div class="item"><strong>Tema</strong><span>{{ espectaculo.generos }}</span></div>
+                {% if espectaculo.artista_show %}
+                <div class="item"><strong>Dirección</strong><span>{{ espectaculo.artista_show }}</span></div>
+                {% endif %}
+                {% if espectaculo.ambientacion_teatro %}
+                <div class="item"><strong>Ambientación</strong><span>{{ espectaculo.ambientacion_teatro }}</span></div>
+                {% endif %}
+                <div class="item"><strong>Clasificación</strong><span>{{ espectaculo.clasificacion }}</span></div>
+                <div class="item"><strong>Duración</strong><span>{{ espectaculo.duracion }}</span></div>
+                <div class="item"><strong>Fecha de estreno</strong><span>{{ espectaculo.fecha_estreno }}</span></div>
+                <div class="item"><strong>Disponible hasta</strong><span>{% if espectaculo.fecha_hasta %}{{ espectaculo.fecha_hasta }}{% else %}Misma fecha de estreno{% endif %}</span></div>
+                {% if espectaculo.descripcion %}
+                <div class="item"><strong>Descripción</strong><span>{{ espectaculo.descripcion }}</span></div>
+                {% endif %}
+
+                {% elif espectaculo.tipo_espectaculo == 'exposicion' %}
+                <div class="item"><strong>Tema</strong><span>{{ espectaculo.generos }}</span></div>
+                {% if espectaculo.artista_show %}
+                <div class="item"><strong>Bajo dirección de</strong><span>{{ espectaculo.artista_show }}</span></div>
+                {% endif %}
+                <div class="item"><strong>Duración</strong><span>{{ espectaculo.duracion }}</span></div>
+                <div class="item"><strong>Fecha de estreno</strong><span>{{ espectaculo.fecha_estreno }}</span></div>
+                <div class="item"><strong>Disponible hasta</strong><span>{% if espectaculo.fecha_hasta %}{{ espectaculo.fecha_hasta }}{% else %}Misma fecha de estreno{% endif %}</span></div>
+                {% if espectaculo.descripcion %}
+                <div class="item"><strong>Descripción</strong><span>{{ espectaculo.descripcion }}</span></div>
+                {% endif %}
+
+                {% else %}
+                <div class="item"><strong>Proveedor</strong><span>{{ espectaculo.proveedor }}</span></div>
+                <div class="item"><strong>Géneros</strong><span>{{ espectaculo.generos }}</span></div>
+                <div class="item"><strong>Clasificación</strong><span>{{ espectaculo.clasificacion }}</span></div>
+                <div class="item"><strong>Duración</strong><span>{{ espectaculo.duracion }}</span></div>
+                <div class="item"><strong>Calificación</strong><span>{{ espectaculo.calificacion }}</span></div>
+                <div class="item"><strong>Fecha de estreno</strong><span>{{ espectaculo.fecha_estreno }}</span></div>
+                <div class="item"><strong>Disponible hasta</strong><span>{% if espectaculo.fecha_hasta %}{{ espectaculo.fecha_hasta }}{% else %}Misma fecha de estreno{% endif %}</span></div>
+                {% if espectaculo.descripcion %}
+                <div class="item"><strong>Descripción</strong><span>{{ espectaculo.descripcion }}</span></div>
+                {% endif %}
+                {% endif %}
+
+                <div class="item">
+                    <strong>Programación</strong>
+                    {% if espectaculo.programacion_detalle and espectaculo.programacion_detalle|length > 0 %}
+                    <div class="programacion">
+                        {% for dia in espectaculo.programacion_detalle %}
+                        <div class="programacion-dia">
+                            <h3>{{ dia.fecha }}</h3>
+                            <ul>
+                                {% for horario in dia.horarios %}
+                                <li>{{ horario.nombre }}{% if horario.inicio and horario.fin %} ({{ horario.inicio }} - {{ horario.fin }}){% endif %}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <span>Sin programación cargada</span>
+                    {% endif %}
+                </div>
+            </section>
+        </div>
+
+        <a class="volver" href="{% url 'main' %}">Volver a cartelera</a>
+    </div>
+</body>
+</html>

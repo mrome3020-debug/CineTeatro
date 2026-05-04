@@ -10,6 +10,7 @@ from DB import (
     construir_programacion_base,
     eliminar_portada_por_rowid,
     ensure_fechas_emision_schema,
+    ensure_espectaculos_schema,
     fechas_desde_programacion_emision,
     formatear_fecha_corta,
     obtener_conexion,
@@ -17,6 +18,12 @@ from DB import (
     obtener_rango_fechas_emision,
     PeliculaCreateForm,
     PeliculaEditForm,
+    ShowCreateForm,
+    ShowEditForm,
+    TeatroCreateForm,
+    TeatroEditForm,
+    ExposicionCreateForm,
+    ExposicionEditForm,
     serializar_programacion_emision,
 )
 from Fechas import calendario
@@ -130,6 +137,7 @@ def admin(request):
         return redirect('ingresar_admin')
 
     ensure_fechas_emision_schema()
+    ensure_espectaculos_schema()
     conn = get_db_connection()
     peliculas = conn.execute('SELECT rowid, * FROM PELICULAS').fetchall()
     conn.close()
@@ -225,9 +233,10 @@ def add_pelicula(request):
         portada_bytes = portada_archivo.read()
 
     ensure_fechas_emision_schema()
+    ensure_espectaculos_schema()
     conn = get_db_connection()
     conn.execute(
-        'INSERT INTO PELICULAS (Nombre, Proveedor, Generos, Clasificacion, Duracion, Descripcion, Calificacion, Fecha_estreno, Fechas_emision, Programacion_emision, Portada, Portada_nombre) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO PELICULAS (Nombre, Proveedor, Generos, Clasificacion, Duracion, Descripcion, Calificacion, Fecha_estreno, Fechas_emision, Programacion_emision, Portada, Portada_nombre, tipo_espectaculo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         (
             datos['nombre'],
             datos['proveedor'],
@@ -241,6 +250,7 @@ def add_pelicula(request):
             programacion_emision_texto,
             portada_bytes,
             portada_nombre,
+            'película',
         ),
     )
     conn.commit()
@@ -275,6 +285,7 @@ def edit_pelicula(request):
         portada_bytes = portada_archivo.read()
 
     ensure_fechas_emision_schema()
+    ensure_espectaculos_schema()
     conn = get_db_connection()
     if not programacion_emision:
         fila_actual = conn.execute(
@@ -311,7 +322,7 @@ def edit_pelicula(request):
 
     if portada_bytes is not None:
         conn.execute(
-            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=?, Portada_nombre=? WHERE rowid=?',
+            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=?, Portada_nombre=?, tipo_espectaculo=? WHERE rowid=?',
             (
                 datos['nombre'],
                 datos['proveedor'],
@@ -325,12 +336,13 @@ def edit_pelicula(request):
                 programacion_emision_texto,
                 portada_bytes,
                 portada_nombre,
+                'película',
                 pelicula_id,
             ),
         )
     else:
         conn.execute(
-            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=CASE WHEN Portada = "" THEN NULL ELSE Portada END WHERE rowid=?',
+            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, tipo_espectaculo=?, Portada=CASE WHEN Portada = "" THEN NULL ELSE Portada END WHERE rowid=?',
             (
                 datos['nombre'],
                 datos['proveedor'],
@@ -342,6 +354,7 @@ def edit_pelicula(request):
                 fecha_estreno,
                 fechas_emision_texto,
                 programacion_emision_texto,
+                'película',
                 pelicula_id,
             ),
         )
@@ -359,6 +372,501 @@ def delete_pelicula(request):
     pelicula_id = int(request.POST['id'])
     conn = get_db_connection()
     conn.execute('DELETE FROM PELICULAS WHERE rowid=?', (pelicula_id,))
+    conn.commit()
+    conn.close()
+    return redirect('admin_panel')
+
+
+def add_show(request):
+    if not _requiere_admin_activo(request):
+        return redirect('ingresar_admin')
+    if request.method != 'POST':
+        return redirect('admin_panel')
+
+    form = ShowCreateForm(request.POST, limpiar_archivos_vacios(request.FILES))
+    if not form.is_valid():
+        return HttpResponseBadRequest(f"Datos invalidos ({formatear_errores_formulario(form)})")
+
+    datos = form.cleaned_data
+    programacion_emision = datos.get('programacion_emision') or {}
+    fechas_emision = fechas_desde_programacion_emision(programacion_emision)
+    fecha_estreno = fechas_emision[0] if fechas_emision else None
+    fechas_emision_texto = ','.join(fechas_emision)
+    programacion_emision_texto = serializar_programacion_emision(programacion_emision) if programacion_emision else ''
+    portada_archivo = datos.get('portada')
+    portada_bytes = None
+    portada_nombre = None
+
+    if portada_archivo:
+        portada_nombre = get_valid_filename(portada_archivo.name)
+        portada_bytes = portada_archivo.read()
+
+    ensure_fechas_emision_schema()
+    ensure_espectaculos_schema()
+    conn = get_db_connection()
+    conn.execute(
+        'INSERT INTO PELICULAS (Nombre, Proveedor, Generos, Clasificacion, Duracion, Descripcion, Calificacion, Fecha_estreno, Fechas_emision, Programacion_emision, Portada, Portada_nombre, tipo_espectaculo, artista_show) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        (
+            datos['nombre'],
+            0,
+            datos['tema'],
+            datos['clasificacion'],
+            datos['duracion'],
+            datos['descripcion'],
+            0.0,
+            fecha_estreno,
+            fechas_emision_texto,
+            programacion_emision_texto,
+            portada_bytes,
+            portada_nombre,
+            'show',
+            datos.get('artista_show', ''),
+        ),
+    )
+    conn.commit()
+    conn.close()
+    return redirect('admin_panel')
+
+
+def edit_show(request):
+    if not _requiere_admin_activo(request):
+        return redirect('ingresar_admin')
+    if request.method != 'POST':
+        return redirect('admin_panel')
+
+    form = ShowEditForm(request.POST, limpiar_archivos_vacios(request.FILES))
+    if not form.is_valid():
+        return HttpResponseBadRequest(f"Datos invalidos ({formatear_errores_formulario(form)})")
+
+    datos = form.cleaned_data
+    show_id = datos['id']
+    programacion_emision = datos.get('programacion_emision') or {}
+    fechas_emision = fechas_desde_programacion_emision(programacion_emision)
+    fecha_estreno = fechas_emision[0] if fechas_emision else None
+    fechas_emision_texto = ','.join(fechas_emision)
+    programacion_emision_texto = serializar_programacion_emision(programacion_emision) if programacion_emision else ''
+    portada_archivo = datos.get('portada')
+    eliminar_portada = bool(datos.get('eliminar_portada'))
+    portada_bytes = None
+    portada_nombre = None
+
+    if portada_archivo:
+        portada_nombre = get_valid_filename(portada_archivo.name)
+        portada_bytes = portada_archivo.read()
+
+    ensure_fechas_emision_schema()
+    ensure_espectaculos_schema()
+    conn = get_db_connection()
+    if not programacion_emision:
+        fila_actual = conn.execute(
+            'SELECT Fecha_estreno, Fechas_emision, Programacion_emision FROM PELICULAS WHERE rowid=?',
+            (show_id,),
+        ).fetchone()
+        if fila_actual:
+            fecha_estreno = fila_actual['Fecha_estreno']
+            fechas_emision_texto = fila_actual['Fechas_emision']
+            programacion_emision_texto = fila_actual['Programacion_emision']
+
+    if eliminar_portada:
+        conn.execute(
+            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, tipo_espectaculo=?, artista_show=? WHERE rowid=?',
+            (
+                datos['nombre'],
+                0,
+                datos['tema'],
+                datos['clasificacion'],
+                datos['duracion'],
+                datos['descripcion'],
+                0.0,
+                fecha_estreno,
+                fechas_emision_texto,
+                programacion_emision_texto,
+                'show',
+                datos.get('artista_show', ''),
+                show_id,
+            ),
+        )
+        conn.commit()
+        conn.close()
+
+        eliminar_portada_por_rowid(show_id)
+        return redirect('admin_panel')
+
+    if portada_bytes is not None:
+        conn.execute(
+            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=?, Portada_nombre=?, tipo_espectaculo=?, artista_show=? WHERE rowid=?',
+            (
+                datos['nombre'],
+                0,
+                datos['tema'],
+                datos['clasificacion'],
+                datos['duracion'],
+                datos['descripcion'],
+                0.0,
+                fecha_estreno,
+                fechas_emision_texto,
+                programacion_emision_texto,
+                portada_bytes,
+                portada_nombre,
+                'show',
+                datos.get('artista_show', ''),
+                show_id,
+            ),
+        )
+    else:
+        conn.execute(
+            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, tipo_espectaculo=?, artista_show=?, Portada=CASE WHEN Portada = "" THEN NULL ELSE Portada END WHERE rowid=?',
+            (
+                datos['nombre'],
+                0,
+                datos['tema'],
+                datos['clasificacion'],
+                datos['duracion'],
+                datos['descripcion'],
+                0.0,
+                fecha_estreno,
+                fechas_emision_texto,
+                programacion_emision_texto,
+                'show',
+                datos.get('artista_show', ''),
+                show_id,
+            ),
+        )
+
+    conn.commit()
+    conn.close()
+    return redirect('admin_panel')
+
+
+def add_teatro(request):
+    if not _requiere_admin_activo(request):
+        return redirect('ingresar_admin')
+    if request.method != 'POST':
+        return redirect('admin_panel')
+
+    form = TeatroCreateForm(request.POST, limpiar_archivos_vacios(request.FILES))
+    if not form.is_valid():
+        return HttpResponseBadRequest(f"Datos invalidos ({formatear_errores_formulario(form)})")
+
+    datos = form.cleaned_data
+    programacion_emision = datos.get('programacion_emision') or {}
+    fechas_emision = fechas_desde_programacion_emision(programacion_emision)
+    fecha_estreno = fechas_emision[0] if fechas_emision else None
+    fechas_emision_texto = ','.join(fechas_emision)
+    programacion_emision_texto = serializar_programacion_emision(programacion_emision) if programacion_emision else ''
+    portada_archivo = datos.get('portada')
+    portada_bytes = None
+    portada_nombre = None
+
+    if portada_archivo:
+        portada_nombre = get_valid_filename(portada_archivo.name)
+        portada_bytes = portada_archivo.read()
+
+    ensure_fechas_emision_schema()
+    ensure_espectaculos_schema()
+    conn = get_db_connection()
+    conn.execute(
+        'INSERT INTO PELICULAS (Nombre, Proveedor, Generos, Clasificacion, Duracion, Descripcion, Calificacion, Fecha_estreno, Fechas_emision, Programacion_emision, Portada, Portada_nombre, tipo_espectaculo, artista_show, ambientacion_teatro) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        (
+            datos['nombre'],
+            0,
+            datos['tema'],
+            datos['clasificacion'],
+            datos['duracion'],
+            datos['descripcion'],
+            0.0,
+            fecha_estreno,
+            fechas_emision_texto,
+            programacion_emision_texto,
+            portada_bytes,
+            portada_nombre,
+            'teatro',
+            datos.get('artista_show', ''),
+            datos.get('ambientacion', ''),
+        ),
+    )
+    conn.commit()
+    conn.close()
+    return redirect('admin_panel')
+
+
+def edit_teatro(request):
+    if not _requiere_admin_activo(request):
+        return redirect('ingresar_admin')
+    if request.method != 'POST':
+        return redirect('admin_panel')
+
+    form = TeatroEditForm(request.POST, limpiar_archivos_vacios(request.FILES))
+    if not form.is_valid():
+        return HttpResponseBadRequest(f"Datos invalidos ({formatear_errores_formulario(form)})")
+
+    datos = form.cleaned_data
+    teatro_id = datos['id']
+    programacion_emision = datos.get('programacion_emision') or {}
+    fechas_emision = fechas_desde_programacion_emision(programacion_emision)
+    fecha_estreno = fechas_emision[0] if fechas_emision else None
+    fechas_emision_texto = ','.join(fechas_emision)
+    programacion_emision_texto = serializar_programacion_emision(programacion_emision) if programacion_emision else ''
+    portada_archivo = datos.get('portada')
+    eliminar_portada = bool(datos.get('eliminar_portada'))
+    portada_bytes = None
+    portada_nombre = None
+
+    if portada_archivo:
+        portada_nombre = get_valid_filename(portada_archivo.name)
+        portada_bytes = portada_archivo.read()
+
+    ensure_fechas_emision_schema()
+    ensure_espectaculos_schema()
+    conn = get_db_connection()
+    if not programacion_emision:
+        fila_actual = conn.execute(
+            'SELECT Fecha_estreno, Fechas_emision, Programacion_emision FROM PELICULAS WHERE rowid=?',
+            (teatro_id,),
+        ).fetchone()
+        if fila_actual:
+            fecha_estreno = fila_actual['Fecha_estreno']
+            fechas_emision_texto = fila_actual['Fechas_emision']
+            programacion_emision_texto = fila_actual['Programacion_emision']
+
+    if eliminar_portada:
+        conn.execute(
+            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, tipo_espectaculo=?, artista_show=?, ambientacion_teatro=? WHERE rowid=?',
+            (
+                datos['nombre'],
+                0,
+                datos['tema'],
+                datos['clasificacion'],
+                datos['duracion'],
+                datos['descripcion'],
+                0.0,
+                fecha_estreno,
+                fechas_emision_texto,
+                programacion_emision_texto,
+                'teatro',
+                datos.get('artista_show', ''),
+                datos.get('ambientacion', ''),
+                teatro_id,
+            ),
+        )
+        conn.commit()
+        conn.close()
+
+        eliminar_portada_por_rowid(teatro_id)
+        return redirect('admin_panel')
+
+    if portada_bytes is not None:
+        conn.execute(
+            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=?, Portada_nombre=?, tipo_espectaculo=?, artista_show=?, ambientacion_teatro=? WHERE rowid=?',
+            (
+                datos['nombre'],
+                0,
+                datos['tema'],
+                datos['clasificacion'],
+                datos['duracion'],
+                datos['descripcion'],
+                0.0,
+                fecha_estreno,
+                fechas_emision_texto,
+                programacion_emision_texto,
+                portada_bytes,
+                portada_nombre,
+                'teatro',
+                datos.get('artista_show', ''),
+                datos.get('ambientacion', ''),
+                teatro_id,
+            ),
+        )
+    else:
+        conn.execute(
+            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, tipo_espectaculo=?, artista_show=?, ambientacion_teatro=?, Portada=CASE WHEN Portada = "" THEN NULL ELSE Portada END WHERE rowid=?',
+            (
+                datos['nombre'],
+                0,
+                datos['tema'],
+                datos['clasificacion'],
+                datos['duracion'],
+                datos['descripcion'],
+                0.0,
+                fecha_estreno,
+                fechas_emision_texto,
+                programacion_emision_texto,
+                'teatro',
+                datos.get('artista_show', ''),
+                datos.get('ambientacion', ''),
+                teatro_id,
+            ),
+        )
+
+    conn.commit()
+    conn.close()
+    return redirect('admin_panel')
+
+
+def add_exposicion(request):
+    if not _requiere_admin_activo(request):
+        return redirect('ingresar_admin')
+    if request.method != 'POST':
+        return redirect('admin_panel')
+
+    form = ExposicionCreateForm(request.POST, limpiar_archivos_vacios(request.FILES))
+    if not form.is_valid():
+        return HttpResponseBadRequest(f"Datos invalidos ({formatear_errores_formulario(form)})")
+
+    datos = form.cleaned_data
+    programacion_emision = datos.get('programacion_emision') or {}
+    fechas_emision = fechas_desde_programacion_emision(programacion_emision)
+    fecha_estreno = fechas_emision[0] if fechas_emision else None
+    fechas_emision_texto = ','.join(fechas_emision)
+    programacion_emision_texto = serializar_programacion_emision(programacion_emision) if programacion_emision else ''
+    portada_archivo = datos.get('portada')
+    portada_bytes = None
+    portada_nombre = None
+
+    if portada_archivo:
+        portada_nombre = get_valid_filename(portada_archivo.name)
+        portada_bytes = portada_archivo.read()
+
+    ensure_fechas_emision_schema()
+    ensure_espectaculos_schema()
+    conn = get_db_connection()
+    conn.execute(
+        'INSERT INTO PELICULAS (Nombre, Proveedor, Generos, Clasificacion, Duracion, Descripcion, Calificacion, Fecha_estreno, Fechas_emision, Programacion_emision, Portada, Portada_nombre, tipo_espectaculo, artista_show, tema_exposicion, responsable) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        (
+            datos['nombre'],
+            0,
+            datos['tema'],
+            'G',
+            datos['duracion'],
+            datos['descripcion'],
+            0.0,
+            fecha_estreno,
+            fechas_emision_texto,
+            programacion_emision_texto,
+            portada_bytes,
+            portada_nombre,
+            'exposicion',
+            datos.get('artista_show', ''),
+            datos.get('tema', ''),
+            datos.get('artista_show', ''),
+        ),
+    )
+    conn.commit()
+    conn.close()
+    return redirect('admin_panel')
+
+
+def edit_exposicion(request):
+    if not _requiere_admin_activo(request):
+        return redirect('ingresar_admin')
+    if request.method != 'POST':
+        return redirect('admin_panel')
+
+    form = ExposicionEditForm(request.POST, limpiar_archivos_vacios(request.FILES))
+    if not form.is_valid():
+        return HttpResponseBadRequest(f"Datos invalidos ({formatear_errores_formulario(form)})")
+
+    datos = form.cleaned_data
+    exposicion_id = datos['id']
+    programacion_emision = datos.get('programacion_emision') or {}
+    fechas_emision = fechas_desde_programacion_emision(programacion_emision)
+    fecha_estreno = fechas_emision[0] if fechas_emision else None
+    fechas_emision_texto = ','.join(fechas_emision)
+    programacion_emision_texto = serializar_programacion_emision(programacion_emision) if programacion_emision else ''
+    portada_archivo = datos.get('portada')
+    eliminar_portada = bool(datos.get('eliminar_portada'))
+    portada_bytes = None
+    portada_nombre = None
+
+    if portada_archivo:
+        portada_nombre = get_valid_filename(portada_archivo.name)
+        portada_bytes = portada_archivo.read()
+
+    ensure_fechas_emision_schema()
+    ensure_espectaculos_schema()
+    conn = get_db_connection()
+    if not programacion_emision:
+        fila_actual = conn.execute(
+            'SELECT Fecha_estreno, Fechas_emision, Programacion_emision FROM PELICULAS WHERE rowid=?',
+            (exposicion_id,),
+        ).fetchone()
+        if fila_actual:
+            fecha_estreno = fila_actual['Fecha_estreno']
+            fechas_emision_texto = fila_actual['Fechas_emision']
+            programacion_emision_texto = fila_actual['Programacion_emision']
+
+    if eliminar_portada:
+        conn.execute(
+            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, tipo_espectaculo=?, artista_show=?, tema_exposicion=?, responsable=? WHERE rowid=?',
+            (
+                datos['nombre'],
+                0,
+                datos['tema'],
+                'G',
+                datos['duracion'],
+                datos['descripcion'],
+                0.0,
+                fecha_estreno,
+                fechas_emision_texto,
+                programacion_emision_texto,
+                'exposicion',
+                datos.get('artista_show', ''),
+                datos.get('tema', ''),
+                datos.get('artista_show', ''),
+                exposicion_id,
+            ),
+        )
+        conn.commit()
+        conn.close()
+
+        eliminar_portada_por_rowid(exposicion_id)
+        return redirect('admin_panel')
+
+    if portada_bytes is not None:
+        conn.execute(
+            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=?, Portada_nombre=?, tipo_espectaculo=?, artista_show=?, tema_exposicion=?, responsable=? WHERE rowid=?',
+            (
+                datos['nombre'],
+                0,
+                datos['tema'],
+                'G',
+                datos['duracion'],
+                datos['descripcion'],
+                0.0,
+                fecha_estreno,
+                fechas_emision_texto,
+                programacion_emision_texto,
+                portada_bytes,
+                portada_nombre,
+                'exposicion',
+                datos.get('artista_show', ''),
+                datos.get('tema', ''),
+                datos.get('artista_show', ''),
+                exposicion_id,
+            ),
+        )
+    else:
+        conn.execute(
+            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, tipo_espectaculo=?, artista_show=?, tema_exposicion=?, responsable=?, Portada=CASE WHEN Portada = "" THEN NULL ELSE Portada END WHERE rowid=?',
+            (
+                datos['nombre'],
+                0,
+                datos['tema'],
+                'G',
+                datos['duracion'],
+                datos['descripcion'],
+                0.0,
+                fecha_estreno,
+                fechas_emision_texto,
+                programacion_emision_texto,
+                'exposicion',
+                datos.get('artista_show', ''),
+                datos.get('tema', ''),
+                datos.get('artista_show', ''),
+                exposicion_id,
+            ),
+        )
+
     conn.commit()
     conn.close()
     return redirect('admin_panel')

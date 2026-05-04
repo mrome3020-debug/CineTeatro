@@ -59,7 +59,7 @@
 
         .peliculas-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            grid-template-columns: repeat(3, 1fr);
             gap: 18px;
         }
 
@@ -73,6 +73,7 @@
             box-shadow: 0 14px 30px rgba(25, 76, 107, 0.12);
             cursor: pointer;
             transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+            justify-items: center;
         }
 
         .pelicula-card:hover {
@@ -85,24 +86,42 @@
             box-shadow: 0 18px 36px rgba(15, 45, 67, 0.2);
         }
 
+        .pelicula-card.tipo-show .pelicula-poster {
+            border: 4px solid #d4af37;
+        }
+
+        .pelicula-card.tipo-teatro .pelicula-poster {
+            border: 4px solid #ff8c00;
+        }
+
+        .pelicula-card.tipo-exposicion .pelicula-poster {
+            border: 4px solid #8b00ff;
+        }
+
+        .pelicula-card.tipo-pelicula .pelicula-poster {
+            border: 4px solid #001a4d;
+        }
+
         .pelicula-poster {
-            aspect-ratio: 3 / 4;
+            width: 220px;
+            height: 320px;
             border-radius: 16px;
             overflow: hidden;
             background: linear-gradient(160deg, #d7ecf8, #f5fbff);
             border: 1px solid #d7e8f3;
+            margin: 0 auto;
         }
 
         .pelicula-poster img {
-            width: 100%;
-            height: 100%;
+            width: 220px;
+            height: 320px;
             object-fit: cover;
             display: block;
         }
 
         .pelicula-poster-placeholder {
-            width: 100%;
-            height: 100%;
+            width: 220px;
+            height: 320px;
             display: grid;
             place-items: center;
             padding: 18px;
@@ -432,6 +451,26 @@
             gap: 8px;
         }
 
+        .horario-personalizado {
+            margin-top: 10px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .horario-personalizado input[type="time"] {
+            width: 150px;
+        }
+
+        .horario-personalizado button {
+            margin: 0;
+            padding: 8px 12px;
+            border-radius: 10px;
+            border: 1px solid #8cc7e7;
+            background: #d9eefb;
+            color: #0f2d43;
+        }
+
         .horario-toggle {
             margin: 0;
             padding: 10px 12px;
@@ -683,6 +722,10 @@
                 padding: 18px 12px 28px;
             }
 
+            .peliculas-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
             .admin-tools {
                 margin-bottom: 20px;
             }
@@ -746,6 +789,99 @@
                 grid-template-columns: 1fr;
             }
         }
+
+        @media (max-width: 520px) {
+            .admin-shell {
+                padding: 14px 8px 24px;
+            }
+
+            .peliculas-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .peliculas-admin-header h2 {
+                font-size: 20px;
+            }
+
+            .pelicula-card {
+                padding: 12px;
+                border-radius: 14px;
+            }
+
+            #add-section,
+            #edit-section,
+            #delete-section {
+                width: calc(100vw - 12px);
+                max-width: none;
+                max-height: calc(100vh - 12px);
+                top: 6px;
+                left: 6px;
+                right: 6px;
+                transform: none;
+            }
+
+            #calendario-popup {
+                width: calc(100vw - 12px);
+                padding: 12px;
+                border-radius: 12px;
+            }
+
+            .cal-dia {
+                font-size: 12px;
+                border-radius: 8px;
+            }
+        }
+
+        @media (max-height: 740px) {
+            #add-section,
+            #edit-section,
+            #delete-section {
+                max-height: calc(100vh - 12px);
+            }
+
+            #calendario-popup {
+                max-height: 92vh;
+                overflow: auto;
+            }
+        }
+
+        /* ── Selector de tipo de espectáculo ── */
+        #tipo-espectaculo-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(10, 30, 46, 0.55);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1100;
+        }
+
+        .tipo-espectaculo-option {
+            margin: 0;
+            padding: 16px;
+            border-radius: 14px;
+            border: 1px solid #b7daf0;
+            background: #f0f8ff;
+            color: #0f2d43;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        .tipo-espectaculo-option:hover {
+            background: #d9eefb;
+            border-color: #7ba8d1;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(15, 45, 67, 0.1);
+        }
+
+        .tipo-espectaculo-option strong {
+            font-size: 16px;
+            margin: 0;
+        }
     </style>
 {% endblock %}
 
@@ -757,13 +893,13 @@
         <div class="admin-tools">
             <div class="admin-tools-panel">
                 <h2>Gestión rápida</h2>
-                <button type="button" class="primary-action-button" onclick="showSection('add')">Añadir Película</button>
+                <button type="button" class="primary-action-button" onclick="mostrarSelectorTipoEspectaculo()">Añadir Espectáculo</button>
             </div>
         </div>
 
         <section class="peliculas-admin">
             <div class="peliculas-admin-header">
-                <h2>Películas registradas</h2>
+                <h2>Espectáculos registrados</h2>
             </div>
 
             <div class="pelicula-actions-panel" id="pelicula-actions-panel">
@@ -771,8 +907,8 @@
                     <h3 id="selected-pelicula-nombre">Sin selección</h3>
                 </div>
                 <div class="pelicula-actions-buttons">
-                    <button type="button" class="action-button action-button-edit" onclick="abrirEdicionSeleccionada()">Editar Película</button>
-                    <button type="button" class="action-button action-button-delete" onclick="abrirEliminacionSeleccionada()">Eliminar Película</button>
+                    <button type="button" class="action-button action-button-edit" onclick="abrirEdicionSeleccionada()">Editar Espectáculo</button>
+                    <button type="button" class="action-button action-button-delete" onclick="abrirEliminacionSeleccionada()">Eliminar Espectáculo</button>
                     <a href="{% url 'ver_portadas' %}" class="action-button-portadas">Ver Portadas</a>
                 </div>
             </div>
@@ -780,16 +916,19 @@
             <div class="peliculas-grid" id="peliculas-grid">
                 {% for pelicula in peliculas %}
                 <article
-                    class="pelicula-card"
+                    class="pelicula-card{% if pelicula.tipo_espectaculo == 'show' %} tipo-show{% elif pelicula.tipo_espectaculo == 'teatro' %} tipo-teatro{% elif pelicula.tipo_espectaculo == 'exposicion' or pelicula.tipo_espectaculo == 'exposición' %} tipo-exposicion{% else %} tipo-pelicula{% endif %}"
                     onclick="seleccionarTarjetaPelicula(this)"
                     data-id="{{ pelicula.rowid }}"
                     data-nombre="{{ pelicula.Nombre }}"
+                    data-tipo="{{ pelicula.tipo_espectaculo|default:'película' }}"
                     data-proveedor="{{ pelicula.Proveedor }}"
                     data-generos="{{ pelicula.Generos }}"
                     data-clasificacion="{{ pelicula.Clasificacion }}"
                     data-duracion="{{ pelicula.Duracion }}"
                     data-descripcion="{{ pelicula.Descripcion }}"
                     data-calificacion="{{ pelicula.Calificacion }}"
+                    data-artista-show="{{ pelicula.artista_show|default:''|escape }}"
+                    data-ambientacion="{{ pelicula.ambientacion_teatro|default:''|escape }}"
                     data-fechas-emision="{{ pelicula.fechas_emision_resumen }}"
                     data-programacion-emision="{{ pelicula.programacion_emision_json|escape }}"
                 >
@@ -803,20 +942,33 @@
                     <div class="pelicula-detalle">
                         <h3>{{ pelicula.Nombre }}</h3>
                         <div class="pelicula-meta">
+                            {% if pelicula.tipo_espectaculo == 'show' %}
+                            <span><strong>Tema:</strong> {{ pelicula.Generos }}</span>
+                            {% if pelicula.artista_show %}<span><strong>Artista:</strong> {{ pelicula.artista_show }}</span>{% endif %}
+                            <span><strong>Clasificación:</strong> {{ pelicula.Clasificacion }}</span>
+                            <span><strong>Duración:</strong> {{ pelicula.Duracion }}</span>
+                            <span><strong>Fechas:</strong> {{ pelicula.fechas_emision_resumen }}</span>
+                            {% elif pelicula.tipo_espectaculo == 'exposicion' or pelicula.tipo_espectaculo == 'exposición' %}
+                            <span><strong>Tema:</strong> {{ pelicula.Generos }}</span>
+                            {% if pelicula.artista_show %}<span><strong>Bajo dirección de:</strong> {{ pelicula.artista_show }}</span>{% endif %}
+                            <span><strong>Duración:</strong> {{ pelicula.Duracion }}</span>
+                            <span><strong>Fechas:</strong> {{ pelicula.fechas_emision_resumen }}</span>
+                            {% else %}
                             <span><strong>Géneros:</strong> {{ pelicula.Generos }}</span>
                             <span><strong>Clasificación:</strong> {{ pelicula.Clasificacion }}</span>
                             <span><strong>Duración:</strong> {{ pelicula.Duracion }}</span>
                             <span><strong>Calificación:</strong> {{ pelicula.Calificacion }}</span>
                             <span><strong>Emisión:</strong> {{ pelicula.fechas_emision_resumen }}</span>
+                            {% endif %}
                         </div>
                     </div>
                 </article>
                 {% empty %}
                 <div class="pelicula-card">
                     <div class="pelicula-detalle">
-                        <h3>Sin películas registradas</h3>
+                        <h3>Sin espectáculos registrados</h3>
                         <div class="pelicula-meta">
-                            <span>Usa el botón “Añadir Película” para crear la primera entrada.</span>
+                            <span>Usa el botón "Añadir Espectáculo" para crear la primera entrada.</span>
                         </div>
                     </div>
                 </div>
@@ -826,14 +978,15 @@
     </div>
 
     <div class="section" id="add-section">
-        <h2>Añadir Película</h2>
+        <h2>Añadir Espectáculo</h2>
         <form id="add-form" method="POST" action="{% url 'add_pelicula' %}" enctype="multipart/form-data">
             {% csrf_token %}
+            <input type="hidden" id="add-tipo-espectaculo" value="película">
             <div class="form-group">
                 <label for="add-nombre">Nombre:</label>
                 <input type="text" id="add-nombre" name="nombre" required>
             </div>
-            <div class="form-group">
+            <div class="form-group" id="add-proveedor-group">
                 <label for="add-proveedor">Proveedor:</label>
                 <select id="add-proveedor" name="proveedor" required>
                     <option value="">Seleccione un proveedor</option>
@@ -842,7 +995,7 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="form-group">
+            <div class="form-group" id="add-generos-group">
                 <label for="add-generos">Géneros:</label>
                 <input type="hidden" id="add-generos" name="generos" required>
                 <details class="generos-dropdown" id="add-generos-dropdown">
@@ -856,7 +1009,11 @@
                 <div class="generos-resumen" id="add-generos-resumen">Sin géneros seleccionados.</div>
                 <div class="generos-error" id="add-generos-error">Solo puedes seleccionar hasta 5 géneros.</div>
             </div>
-            <div class="form-group">
+            <div class="form-group" id="add-tema-show-group" style="display:none;">
+                <label for="add-tema-show">Tema:</label>
+                <input type="text" id="add-tema-show" name="tema" placeholder="Tema libre del show">
+            </div>
+            <div class="form-group" id="add-clasificacion-group">
                 <label for="add-clasificacion">Clasificación:</label>
                 <select id="add-clasificacion" name="clasificacion" required>
                     <option value="">Seleccione una clasificación</option>
@@ -875,27 +1032,54 @@
                 <label for="add-descripcion">Descripción:</label>
                 <textarea id="add-descripcion" name="descripcion" required></textarea>
             </div>
-            <div class="form-group">
+            <div class="form-group" id="artista-show-group" style="display:none;">
+                <label for="add-artista-show" id="add-artista-show-label">Artista (para Shows):</label>
+                <input type="text" id="add-artista-show" name="artista_show" placeholder="Nombre del artista o banda">
+            </div>
+            <div class="form-group" id="teatro-elenco-group" style="display:none;">
+                <label for="add-teatro-elenco">Elenco/Director:</label>
+                <input type="text" id="add-teatro-elenco" name="artista_show" placeholder="Nombre del elenco o director principal">
+            </div>
+            <div class="form-group" id="teatro-ambientacion-group" style="display:none;">
+                <label for="add-teatro-ambientacion">Ambientación (Opcional):</label>
+                <input type="text" id="add-teatro-ambientacion" name="ambientacion" placeholder="Época histórica o período temporal (ej: Siglo XVI, Antiguo Egipto)">
+            </div>
+            <div class="form-group" id="tema-exposicion-group" style="display:none;">
+                <label for="add-tema-exposicion">Tema de la Exposición:</label>
+                <input type="text" id="add-tema-exposicion" name="tema_exposicion" placeholder="Tema principal de la exposición">
+            </div>
+            <div class="form-group" id="responsable-group" style="display:none;">
+                <label for="add-responsable">Responsable:</label>
+                <input type="text" id="add-responsable" name="responsable" placeholder="Nombre del responsable">
+            </div>
+            <div class="form-group" id="add-calificacion-group">
                 <label for="add-calificacion">Calificación:</label>
                 <input type="text" id="add-calificacion" name="calificacion" inputmode="decimal" pattern="^(10(\.0)?|[0-9](\.[0-9])?)$" title="Ingresa un número entre 0.0 y 10.0 con un solo decimal" required>
             </div>
-            <div class="form-group">
+            <div class="form-group" id="add-estreno-group">
                 <label>Fecha de Estreno:</label>
                 <div class="fecha-rango-picker">
                     <input type="text" id="add-input-estreno" readonly placeholder="Sin seleccionar" onclick="abrirCalendarioPopup('add','estreno')">
                     <button type="button" class="btn-abrir-cal" onclick="abrirCalendarioPopup('add','estreno')" title="Abrir calendario">&#128197;</button>
                 </div>
             </div>
-            <div class="form-group">
+            <div class="form-group" id="add-fin-group">
                 <label>Último día de emisión:</label>
                 <div class="fecha-rango-picker">
                     <input type="text" id="add-input-fin" readonly placeholder="Sin seleccionar" onclick="abrirCalendarioPopup('add','fin')">
                     <button type="button" class="btn-abrir-cal" onclick="abrirCalendarioPopup('add','fin')" title="Abrir calendario">&#128197;</button>
                 </div>
             </div>
+            <div class="form-group" id="add-show-fechas-group" style="display:none;">
+                <label>Fechas:</label>
+                <div class="fecha-rango-picker">
+                    <input type="text" id="add-input-fecha-show" readonly placeholder="Selecciona una o varias fechas" onclick="abrirCalendarioPopup('add','fecha-show')">
+                    <button type="button" class="btn-abrir-cal" onclick="abrirCalendarioPopup('add','fecha-show')" title="Agregar fecha">&#128197;</button>
+                </div>
+            </div>
             <div class="form-group">
-                <label>Programación de funciones:</label>
-                <p class="fecha-ayuda">Selecciona la Fecha de Estreno y el Último día. Todas las fechas disponibles en ese rango se agregarán automáticamente. Luego elige los horarios para cada día.</p>
+                <label id="add-programacion-label">Programación de funciones:</label>
+                <p class="fecha-ayuda" id="add-programacion-ayuda">Selecciona la Fecha de Estreno y el Último día. Todas las fechas disponibles en ese rango se agregarán automáticamente. Luego elige los horarios para cada día.</p>
                 <div class="fecha-lista" id="add-fechas-lista"></div>
                 <div class="fecha-bloqueada-lista" id="add-fechas-bloqueadas"></div>
             </div>
@@ -913,15 +1097,16 @@
     </div>
 
     <div class="section" id="edit-section">
-        <h2>Editar Película</h2>
+        <h2>Editar Espectáculo</h2>
         <form id="edit-form" method="POST" action="{% url 'edit_pelicula' %}" style="display:none;" enctype="multipart/form-data">
             {% csrf_token %}
             <input type="hidden" id="edit-id" name="id">
+            <input type="hidden" id="edit-tipo-espectaculo" value="película">
             <div class="form-group">
                 <label for="edit-nombre">Nombre:</label>
                 <input type="text" id="edit-nombre" name="nombre" required>
             </div>
-            <div class="form-group">
+            <div class="form-group" id="edit-proveedor-group">
                 <label for="edit-proveedor">Proveedor:</label>
                 <select id="edit-proveedor" name="proveedor" required>
                     <option value="">Seleccione un proveedor</option>
@@ -930,7 +1115,7 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="form-group">
+            <div class="form-group" id="edit-generos-group">
                 <label for="edit-generos">Géneros:</label>
                 <input type="hidden" id="edit-generos" name="generos" required>
                 <details class="generos-dropdown" id="edit-generos-dropdown">
@@ -944,7 +1129,11 @@
                 <div class="generos-resumen" id="edit-generos-resumen">Sin géneros seleccionados.</div>
                 <div class="generos-error" id="edit-generos-error">Solo puedes seleccionar hasta 5 géneros.</div>
             </div>
-            <div class="form-group">
+            <div class="form-group" id="edit-tema-show-group" style="display:none;">
+                <label for="edit-tema-show">Tema:</label>
+                <input type="text" id="edit-tema-show" name="tema" placeholder="Tema libre del show">
+            </div>
+            <div class="form-group" id="edit-clasificacion-group">
                 <label for="edit-clasificacion">Clasificación:</label>
                 <select id="edit-clasificacion" name="clasificacion" required>
                     <option value="">Seleccione una clasificación</option>
@@ -963,27 +1152,54 @@
                 <label for="edit-descripcion">Descripción:</label>
                 <textarea id="edit-descripcion" name="descripcion" required></textarea>
             </div>
-            <div class="form-group">
+            <div class="form-group" id="edit-artista-show-group" style="display:none;">
+                <label for="edit-artista-show" id="edit-artista-show-label">Artista (para Shows):</label>
+                <input type="text" id="edit-artista-show" name="artista_show" placeholder="Nombre del artista o banda">
+            </div>
+            <div class="form-group" id="edit-teatro-elenco-group" style="display:none;">
+                <label for="edit-teatro-elenco">Elenco/Director:</label>
+                <input type="text" id="edit-teatro-elenco" name="artista_show" placeholder="Nombre del elenco o director principal">
+            </div>
+            <div class="form-group" id="edit-teatro-ambientacion-group" style="display:none;">
+                <label for="edit-teatro-ambientacion">Ambientación (Opcional):</label>
+                <input type="text" id="edit-teatro-ambientacion" name="ambientacion" placeholder="Época histórica o período temporal (ej: Siglo XVI, Antiguo Egipto)">
+            </div>
+            <div class="form-group" id="edit-tema-exposicion-group" style="display:none;">
+                <label for="edit-tema-exposicion">Tema de la Exposición:</label>
+                <input type="text" id="edit-tema-exposicion" name="tema_exposicion" placeholder="Tema principal de la exposición">
+            </div>
+            <div class="form-group" id="edit-responsable-group" style="display:none;">
+                <label for="edit-responsable">Responsable:</label>
+                <input type="text" id="edit-responsable" name="responsable" placeholder="Nombre del responsable">
+            </div>
+            <div class="form-group" id="edit-calificacion-group">
                 <label for="edit-calificacion">Calificación:</label>
                 <input type="text" id="edit-calificacion" name="calificacion" inputmode="decimal" pattern="^(10(\.0)?|[0-9](\.[0-9])?)$" title="Ingresa un número entre 0.0 y 10.0 con un solo decimal" required>
             </div>
-            <div class="form-group">
+            <div class="form-group" id="edit-estreno-group">
                 <label>Fecha de Estreno:</label>
                 <div class="fecha-rango-picker">
                     <input type="text" id="edit-input-estreno" readonly placeholder="Sin seleccionar" onclick="abrirCalendarioPopup('edit','estreno')">
                     <button type="button" class="btn-abrir-cal" onclick="abrirCalendarioPopup('edit','estreno')" title="Abrir calendario">&#128197;</button>
                 </div>
             </div>
-            <div class="form-group">
+            <div class="form-group" id="edit-fin-group">
                 <label>Último día de emisión:</label>
                 <div class="fecha-rango-picker">
                     <input type="text" id="edit-input-fin" readonly placeholder="Sin seleccionar" onclick="abrirCalendarioPopup('edit','fin')">
                     <button type="button" class="btn-abrir-cal" onclick="abrirCalendarioPopup('edit','fin')" title="Abrir calendario">&#128197;</button>
                 </div>
             </div>
+            <div class="form-group" id="edit-show-fechas-group" style="display:none;">
+                <label>Fechas:</label>
+                <div class="fecha-rango-picker">
+                    <input type="text" id="edit-input-fecha-show" readonly placeholder="Selecciona una o varias fechas" onclick="abrirCalendarioPopup('edit','fecha-show')">
+                    <button type="button" class="btn-abrir-cal" onclick="abrirCalendarioPopup('edit','fecha-show')" title="Agregar fecha">&#128197;</button>
+                </div>
+            </div>
             <div class="form-group">
-                <label>Programación de funciones:</label>
-                <p class="fecha-ayuda">Selecciona la Fecha de Estreno y el Último día. Todas las fechas disponibles en ese rango se agregarán automáticamente. Luego elige los horarios para cada día.</p>
+                <label id="edit-programacion-label">Programación de funciones:</label>
+                <p class="fecha-ayuda" id="edit-programacion-ayuda">Selecciona la Fecha de Estreno y el Último día. Todas las fechas disponibles en ese rango se agregarán automáticamente. Luego elige los horarios para cada día.</p>
                 <div class="fecha-lista" id="edit-fechas-lista"></div>
                 <div class="fecha-bloqueada-lista" id="edit-fechas-bloqueadas"></div>
             </div>
@@ -1025,8 +1241,40 @@
         </div>
     </div>
 
+    <!-- ══ Selector de tipo de espectáculo ══ -->
+    <div id="tipo-espectaculo-overlay" style="display:none;" onclick="if(event.target===this)cerrarSelectorTipoEspectaculo()">
+        <div id="tipo-espectaculo-selector" style="background: #ffffff; border-radius: 20px; border: 1px solid #bfd9ea; box-shadow: 0 20px 50px rgba(15, 45, 67, 0.22); padding: 24px; width: min(500px, 96vw); display: grid; gap: 16px;">
+            <h3 style="margin: 0; font-size: 20px; color: #0f2d43;">Selecciona el tipo de espectáculo</h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <button type="button" class="tipo-espectaculo-option" data-tipo="película" onclick="seleccionarTipoEspectaculo('película')">
+                    <div style="font-size: 24px; margin-bottom: 8px;">🎬</div>
+                    <strong>Película</strong>
+                    <p style="margin: 4px 0 0; font-size: 12px; color: #4b677c;">Películas de cine</p>
+                </button>
+                <button type="button" class="tipo-espectaculo-option" data-tipo="show" onclick="seleccionarTipoEspectaculo('show')">
+                    <div style="font-size: 24px; margin-bottom: 8px;">🎭</div>
+                    <strong>Show</strong>
+                    <p style="margin: 4px 0 0; font-size: 12px; color: #4b677c;">Presentaciones en vivo</p>
+                </button>
+                <button type="button" class="tipo-espectaculo-option" data-tipo="teatro" onclick="seleccionarTipoEspectaculo('teatro')">
+                    <div style="font-size: 24px; margin-bottom: 8px;">🎪</div>
+                    <strong>Teatro</strong>
+                    <p style="margin: 4px 0 0; font-size: 12px; color: #4b677c;">Obras teatrales</p>
+                </button>
+                <button type="button" class="tipo-espectaculo-option" data-tipo="exposicion" onclick="seleccionarTipoEspectaculo('exposicion')">
+                    <div style="font-size: 24px; margin-bottom: 8px;">🎨</div>
+                    <strong>Exposición</strong>
+                    <p style="margin: 4px 0 0; font-size: 12px; color: #4b677c;">Exposiciones de arte</p>
+                </button>
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button type="button" class="cancel" onclick="cerrarSelectorTipoEspectaculo()">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
     <div class="section" id="delete-section">
-        <h2>Eliminar Película</h2>
+        <h2>Eliminar Espectáculo</h2>
         <form id="delete-form" method="POST" action="{% url 'delete_pelicula' %}" style="display:none;">
             {% csrf_token %}
             <input type="hidden" id="delete-id" name="id">
@@ -1112,6 +1360,9 @@
                 const [y, m, d] = rango.estreno.split('-');
                 info.textContent = `Fecha de Estreno seleccionada: ${d}/${m}/${y}. El rango comenzará desde ese día.`;
                 info.classList.add('visible');
+            } else if (tipo === 'fecha-show') {
+                info.textContent = 'Selecciona una fecha para agregarla a la programación del show.';
+                info.classList.add('visible');
             } else {
                 info.classList.remove('visible');
             }
@@ -1187,6 +1438,20 @@
             }
             const { prefix, tipo } = _popupCtx;
             const rango = estadoRango[prefix];
+
+            if (tipo === 'fecha-show') {
+                cerrarCalendarioPopup();
+                await asegurarDisponibilidadProgramacion(prefix);
+                const estado = estadoProgramacion[prefix];
+                if (!estado.fechasSeleccionadas.includes(fecha)) {
+                    estado.fechasSeleccionadas.push(fecha);
+                }
+                if (!Array.isArray(estado.programacion[fecha])) {
+                    estado.programacion[fecha] = [];
+                }
+                renderizarFechasProgramacion(prefix);
+                return;
+            }
 
             if (tipo === 'estreno') {
                 rango.estreno = fecha;
@@ -1291,16 +1556,42 @@
             const horarios = [];
             const vistos = new Set();
 
+            function esHoraPersonalizadaValida(nombre) {
+                return /^(?:[01]\d|2[0-3]):(?:00|15|30|45)$/.test(nombre);
+            }
+
+            function inicioHorario(nombre) {
+                const fijo = horariosDisponibles.find((item) => item.nombre === nombre);
+                if (fijo) {
+                    const [h, m] = fijo.inicio.split(':').map((n) => parseInt(n, 10));
+                    return (h * 60) + m;
+                }
+                if (esHoraPersonalizadaValida(nombre)) {
+                    const [h, m] = nombre.split(':').map((n) => parseInt(n, 10));
+                    return (h * 60) + m;
+                }
+                return Number.MAX_SAFE_INTEGER;
+            }
+
             candidatos.forEach((horario) => {
                 const nombre = String(horario).trim();
-                if (!ordenHorarios.has(nombre) || vistos.has(nombre)) {
+                if (vistos.has(nombre)) {
+                    return;
+                }
+                if (!ordenHorarios.has(nombre) && !esHoraPersonalizadaValida(nombre)) {
                     return;
                 }
                 vistos.add(nombre);
                 horarios.push(nombre);
             });
 
-            return horarios.sort((a, b) => ordenHorarios.get(a) - ordenHorarios.get(b));
+            return horarios.sort((a, b) => {
+                const diff = inicioHorario(a) - inicioHorario(b);
+                if (diff !== 0) {
+                    return diff;
+                }
+                return a.localeCompare(b);
+            });
         }
 
         function normalizarProgramacion(value) {
@@ -1342,7 +1633,7 @@
         function obtenerEtiquetaHorario(nombreHorario) {
             const horario = horariosDisponibles.find((item) => item.nombre === nombreHorario);
             if (!horario) {
-                return nombreHorario;
+                return `${nombreHorario} (personalizado)`;
             }
             return `${horario.nombre} (${horario.inicio} - ${horario.fin})`;
         }
@@ -1410,6 +1701,46 @@
             });
         }
 
+        function intervaloHorario(nombreHorario) {
+            const fijo = horariosDisponibles.find((item) => item.nombre === nombreHorario);
+            if (fijo) {
+                const [hi, mi] = fijo.inicio.split(':').map((n) => parseInt(n, 10));
+                const [hf, mf] = fijo.fin.split(':').map((n) => parseInt(n, 10));
+                return [(hi * 60) + mi, (hf * 60) + mf];
+            }
+            if (!/^(?:[01]\d|2[0-3]):(?:00|15|30|45)$/.test(nombreHorario)) {
+                return null;
+            }
+            const [h, m] = nombreHorario.split(':').map((n) => parseInt(n, 10));
+            const inicio = (h * 60) + m;
+            return [inicio, inicio + 15];
+        }
+
+        function seSuperponen(intervaloA, intervaloB) {
+            return intervaloA[0] < intervaloB[1] && intervaloB[0] < intervaloA[1];
+        }
+
+        function obtenerConflictoHorario(prefix, fecha, horarioCandidato) {
+            const estado = estadoProgramacion[prefix];
+            const ocupacionFecha = estado.ocupacion[fecha] || {};
+            const intervaloCandidato = intervaloHorario(horarioCandidato);
+            if (!intervaloCandidato) {
+                return null;
+            }
+
+            for (const [horarioOcupado, conflicto] of Object.entries(ocupacionFecha)) {
+                const intervaloOcupado = intervaloHorario(horarioOcupado);
+                if (!intervaloOcupado) {
+                    continue;
+                }
+                if (seSuperponen(intervaloCandidato, intervaloOcupado)) {
+                    return conflicto;
+                }
+            }
+
+            return null;
+        }
+
         function renderizarFechasProgramacion(prefix) {
             const estado = estadoProgramacion[prefix];
             const lista = document.getElementById(`${prefix}-fechas-lista`);
@@ -1419,6 +1750,24 @@
 
             const fechas = normalizarFechas(estado.fechasSeleccionadas.join(','));
             estado.fechasSeleccionadas = fechas;
+
+            if (prefix === 'add') {
+                const inputFechasShow = document.getElementById('add-input-fecha-show');
+                const tipoAdd = document.getElementById('add-tipo-espectaculo')?.value || 'película';
+                if (inputFechasShow && tipoAdd === 'show') {
+                    inputFechasShow.value = fechas.length
+                        ? fechas.map((f) => formatearFechaVisible(f)).join(', ')
+                        : '';
+                }
+            } else if (prefix === 'edit') {
+                const inputFechasShow = document.getElementById('edit-input-fecha-show');
+                const tipoEdit = document.getElementById('edit-tipo-espectaculo')?.value || 'película';
+                if (inputFechasShow && tipoEdit === 'show') {
+                    inputFechasShow.value = fechas.length
+                        ? fechas.map((f) => formatearFechaVisible(f)).join(', ')
+                        : '';
+                }
+            }
 
             if (!fechas.length) {
                 const vacia = document.createElement('span');
@@ -1465,7 +1814,7 @@
 
                 const resumen = document.createElement('summary');
                 resumen.textContent = estado.programacion[fecha].length
-                    ? `Horarios seleccionados (${estado.programacion[fecha].length}/3)`
+                    ? `Horarios seleccionados (${estado.programacion[fecha].length})`
                     : 'Selecciona al menos un horario';
                 horariosWrap.appendChild(resumen);
 
@@ -1497,6 +1846,11 @@
                         if (indice >= 0) {
                             listaActual.splice(indice, 1);
                         } else {
+                            const conflicto = obtenerConflictoHorario(prefix, fecha, horario.nombre);
+                            if (conflicto) {
+                                alert(`Fecha y Hora ya ocupadas por (${conflicto.pelicula_nombre})`);
+                                return;
+                            }
                             listaActual.push(horario.nombre);
                         }
 
@@ -1508,6 +1862,44 @@
                 });
 
                 horariosWrap.appendChild(opciones);
+
+                const personalizado = document.createElement('div');
+                personalizado.className = 'horario-personalizado';
+
+                const inputHora = document.createElement('input');
+                inputHora.type = 'time';
+                inputHora.step = '900';
+                inputHora.value = '16:00';
+
+                const botonAgregarHora = document.createElement('button');
+                botonAgregarHora.type = 'button';
+                botonAgregarHora.textContent = 'Agregar horario';
+                botonAgregarHora.addEventListener('click', () => {
+                    const valor = String(inputHora.value || '').trim();
+                    if (!/^(?:[01]\d|2[0-3]):(?:00|15|30|45)$/.test(valor)) {
+                        alert('Selecciona un horario válido cada 15 minutos.');
+                        return;
+                    }
+
+                    const listaActual = normalizarHorarios(estado.programacion[fecha] || []);
+                    if (listaActual.includes(valor)) {
+                        return;
+                    }
+
+                    const conflicto = obtenerConflictoHorario(prefix, fecha, valor);
+                    if (conflicto) {
+                        alert(`Fecha y Hora ya ocupadas por (${conflicto.pelicula_nombre})`);
+                        return;
+                    }
+
+                    listaActual.push(valor);
+                    estado.programacion[fecha] = normalizarHorarios(listaActual);
+                    renderizarFechasProgramacion(prefix);
+                });
+
+                personalizado.appendChild(inputHora);
+                personalizado.appendChild(botonAgregarHora);
+                horariosWrap.appendChild(personalizado);
                 tarjeta.appendChild(horariosWrap);
 
                 const seleccionados = document.createElement('div');
@@ -1810,6 +2202,7 @@
                 } else {
                     establecerProgramacion('add', {}, '');
                 }
+                aplicarTipoFormularioAdd(document.getElementById('add-tipo-espectaculo').value || 'película');
                 asegurarDisponibilidadProgramacion('add');
             }
         }
@@ -1839,12 +2232,16 @@
         function cargarFormularioEdicion(element) {
             const id = element.dataset.id;
             const nombre = element.dataset.nombre;
+            const tipoRaw = (element.dataset.tipo || 'película').trim();
+            const tipo = tipoRaw === 'exposición' ? 'exposicion' : tipoRaw;
             const proveedor = element.dataset.proveedor;
             const generos = element.dataset.generos;
             const clasificacion = element.dataset.clasificacion;
             const duracion = element.dataset.duracion;
             const descripcion = element.dataset.descripcion;
             const calificacion = element.dataset.calificacion;
+            const artistaShow = element.dataset.artistaShow || '';
+            const ambientacion = element.dataset.ambientacion || '';
             let programacion = {};
             try {
                 programacion = normalizarProgramacion(element.dataset.programacionEmision || '{}');
@@ -1854,13 +2251,16 @@
 
             asegurarProveedorDisponible('edit', proveedor);
             document.getElementById('edit-id').value = id;
+            document.getElementById('edit-tipo-espectaculo').value = tipo;
             document.getElementById('edit-nombre').value = nombre;
             document.getElementById('edit-proveedor').value = proveedor;
             establecerGeneros('edit', generos);
+            document.getElementById('edit-tema-show').value = generos;
             document.getElementById('edit-clasificacion').value = clasificacion;
             document.getElementById('edit-duracion').value = duracion;
             document.getElementById('edit-descripcion').value = descripcion;
             document.getElementById('edit-calificacion').value = calificacion;
+            document.getElementById('edit-artista-show').value = artistaShow;
             document.getElementById('edit-portada').value = '';
             document.getElementById('edit-eliminar-portada').checked = false;
 
@@ -1876,6 +2276,8 @@
             } else {
                 establecerProgramacion('edit', programacion, element.dataset.fechasEmision || '');
             }
+
+            aplicarTipoFormularioEdit(tipo);
             asegurarDisponibilidadProgramacion('edit');
         }
 
@@ -1920,14 +2322,25 @@
         }
 
         document.getElementById('add-form').addEventListener('submit', function (event) {
-            if (!validarGenerosFormulario('add')) {
-                event.preventDefault();
-                return;
-            }
+            const tipo = document.getElementById('add-tipo-espectaculo').value || 'película';
+            const esFormatoShow = tipo === 'show' || tipo === 'teatro' || tipo === 'exposicion' || tipo === 'exposición';
+            if (esFormatoShow) {
+                const tema = String(document.getElementById('add-tema-show').value || '').trim();
+                if (!tema) {
+                    alert('El tema es obligatorio para este tipo de espectáculo.');
+                    event.preventDefault();
+                    return;
+                }
+            } else {
+                if (!validarGenerosFormulario('add')) {
+                    event.preventDefault();
+                    return;
+                }
 
-            if (!validarCalificacionFormulario('add')) {
-                event.preventDefault();
-                return;
+                if (!validarCalificacionFormulario('add')) {
+                    event.preventDefault();
+                    return;
+                }
             }
 
             if (!validarProgramacionFormulario('add')) {
@@ -1936,14 +2349,25 @@
         });
 
         document.getElementById('edit-form').addEventListener('submit', function (event) {
-            if (!validarGenerosFormulario('edit')) {
-                event.preventDefault();
-                return;
-            }
+            const tipo = document.getElementById('edit-tipo-espectaculo').value || 'película';
+            const esFormatoShow = tipo === 'show' || tipo === 'teatro' || tipo === 'exposicion' || tipo === 'exposición';
+            if (esFormatoShow) {
+                const tema = String(document.getElementById('edit-tema-show').value || '').trim();
+                if (!tema) {
+                    alert('El tema es obligatorio para este tipo de espectáculo.');
+                    event.preventDefault();
+                    return;
+                }
+            } else {
+                if (!validarGenerosFormulario('edit')) {
+                    event.preventDefault();
+                    return;
+                }
 
-            if (!validarCalificacionFormulario('edit')) {
-                event.preventDefault();
-                return;
+                if (!validarCalificacionFormulario('edit')) {
+                    event.preventDefault();
+                    return;
+                }
             }
 
             if (!validarProgramacionFormulario('edit')) {
@@ -1955,5 +2379,201 @@
         establecerGeneros('edit', '');
         establecerProgramacion('add', {}, '');
         establecerProgramacion('edit', {}, '');
+
+        // ── Selector de tipo de espectáculo ──
+        function mostrarSelectorTipoEspectaculo() {
+            const overlay = document.getElementById('tipo-espectaculo-overlay');
+            overlay.style.display = 'flex';
+        }
+
+        function cerrarSelectorTipoEspectaculo() {
+            const overlay = document.getElementById('tipo-espectaculo-overlay');
+            overlay.style.display = 'none';
+        }
+
+        function seleccionarTipoEspectaculo(tipo) {
+            cerrarSelectorTipoEspectaculo();
+            const tipoInput = document.getElementById('add-tipo-espectaculo');
+            tipoInput.defaultValue = tipo;
+            tipoInput.value = tipo;
+            showSection('add');
+            aplicarTipoFormularioAdd(tipo);
+        }
+
+        function aplicarTipoFormularioAdd(tipo) {
+            const addForm = document.getElementById('add-form');
+            const esShow = tipo === 'show';
+            const esTeatro = tipo === 'teatro';
+            const esExposicion = tipo === 'exposicion' || tipo === 'exposición';
+            const esFormatoShow = esShow || esTeatro || esExposicion;
+
+            if (esShow) {
+                addForm.action = '{% url "add_show" %}';
+            } else if (esTeatro) {
+                addForm.action = '{% url "add_teatro" %}';
+            } else if (esExposicion) {
+                addForm.action = '{% url "add_exposicion" %}';
+            } else {
+                addForm.action = '{% url "add_pelicula" %}';
+            }
+
+            const proveedor = document.getElementById('add-proveedor-group');
+            const generos = document.getElementById('add-generos-group');
+            const temaShow = document.getElementById('add-tema-show-group');
+            const calificacion = document.getElementById('add-calificacion-group');
+            const clasificacion = document.getElementById('add-clasificacion-group');
+            const estreno = document.getElementById('add-estreno-group');
+            const fin = document.getElementById('add-fin-group');
+            const showFechas = document.getElementById('add-show-fechas-group');
+            const ayuda = document.getElementById('add-programacion-ayuda');
+            const etiqueta = document.getElementById('add-programacion-label');
+
+            proveedor.style.display = esFormatoShow ? 'none' : 'grid';
+            generos.style.display = esFormatoShow ? 'none' : 'grid';
+            temaShow.style.display = esFormatoShow ? 'grid' : 'none';
+            calificacion.style.display = esFormatoShow ? 'none' : 'grid';
+            clasificacion.style.display = esExposicion ? 'none' : 'grid';
+            estreno.style.display = esFormatoShow ? 'none' : 'grid';
+            fin.style.display = esFormatoShow ? 'none' : 'grid';
+            showFechas.style.display = esFormatoShow ? 'grid' : 'none';
+
+            const inputProveedor = document.getElementById('add-proveedor');
+            const inputCalificacion = document.getElementById('add-calificacion');
+            const inputGeneros = document.getElementById('add-generos');
+            const inputTemaShow = document.getElementById('add-tema-show');
+            const inputClasificacion = document.getElementById('add-clasificacion');
+
+            inputProveedor.required = !esFormatoShow;
+            inputCalificacion.required = !esFormatoShow;
+            inputGeneros.required = !esFormatoShow;
+            inputTemaShow.required = esFormatoShow;
+            inputClasificacion.required = !esExposicion;
+
+            inputProveedor.disabled = esFormatoShow;
+            inputCalificacion.disabled = esFormatoShow;
+            inputGeneros.disabled = esFormatoShow;
+            inputTemaShow.disabled = !esFormatoShow;
+            inputClasificacion.disabled = esExposicion;
+
+            if (esFormatoShow) {
+                inputProveedor.value = '';
+                inputCalificacion.value = '';
+                inputCalificacion.setCustomValidity('');
+                inputGeneros.value = '';
+            }
+
+            etiqueta.textContent = esFormatoShow ? 'Horarios por fecha:' : 'Programación de funciones:';
+            ayuda.textContent = esFormatoShow
+                ? 'Agrega una o varias Fechas y luego asigna horarios fijos o personalizados en intervalos de 15 minutos.'
+                : 'Selecciona la Fecha de Estreno y el Último día. Todas las fechas disponibles en ese rango se agregarán automáticamente. Luego elige los horarios para cada día.';
+
+            const artistaShowGroup = document.getElementById('artista-show-group');
+            const addArtistaLabel = document.getElementById('add-artista-show-label');
+            const addArtistaInput = document.getElementById('add-artista-show');
+            const teatroElencoGroup = document.getElementById('teatro-elenco-group');
+            const teatroAmbientacionGroup = document.getElementById('teatro-ambientacion-group');
+            const temaExposicionGroup = document.getElementById('tema-exposicion-group');
+            const responsableGroup = document.getElementById('responsable-group');
+
+            if (artistaShowGroup) artistaShowGroup.style.display = 'none';
+            if (teatroElencoGroup) teatroElencoGroup.style.display = 'none';
+            if (teatroAmbientacionGroup) teatroAmbientacionGroup.style.display = 'none';
+            if (temaExposicionGroup) temaExposicionGroup.style.display = 'none';
+            if (responsableGroup) responsableGroup.style.display = 'none';
+
+            if (esShow && artistaShowGroup) {
+                artistaShowGroup.style.display = 'grid';
+                if (addArtistaLabel) addArtistaLabel.textContent = 'Artista (para Shows):';
+                if (addArtistaInput) addArtistaInput.placeholder = 'Nombre del artista o banda';
+            } else if (esTeatro) {
+                if (teatroElencoGroup) teatroElencoGroup.style.display = 'grid';
+                if (teatroAmbientacionGroup) teatroAmbientacionGroup.style.display = 'grid';
+            } else if (esExposicion && artistaShowGroup) {
+                artistaShowGroup.style.display = 'grid';
+                if (addArtistaLabel) addArtistaLabel.textContent = 'Bajo dirección de:';
+                if (addArtistaInput) addArtistaInput.placeholder = 'Nombre de la persona a cargo';
+            }
+        }
+
+        function aplicarTipoFormularioEdit(tipo) {
+            const editForm = document.getElementById('edit-form');
+            const esShow = tipo === 'show';
+            const esTeatro = tipo === 'teatro';
+            const esExposicion = tipo === 'exposicion' || tipo === 'exposición';
+            const esFormatoShow = esShow || esTeatro || esExposicion;
+
+            if (esShow) {
+                editForm.action = '{% url "edit_show" %}';
+            } else if (esTeatro) {
+                editForm.action = '{% url "edit_teatro" %}';
+            } else if (esExposicion) {
+                editForm.action = '{% url "edit_exposicion" %}';
+            } else {
+                editForm.action = '{% url "edit_pelicula" %}';
+            }
+
+            document.getElementById('edit-proveedor-group').style.display = esFormatoShow ? 'none' : 'grid';
+            document.getElementById('edit-generos-group').style.display = esFormatoShow ? 'none' : 'grid';
+            document.getElementById('edit-tema-show-group').style.display = esFormatoShow ? 'grid' : 'none';
+            document.getElementById('edit-calificacion-group').style.display = esFormatoShow ? 'none' : 'grid';
+            document.getElementById('edit-clasificacion-group').style.display = esExposicion ? 'none' : 'grid';
+            document.getElementById('edit-estreno-group').style.display = esFormatoShow ? 'none' : 'grid';
+            document.getElementById('edit-fin-group').style.display = esFormatoShow ? 'none' : 'grid';
+            document.getElementById('edit-show-fechas-group').style.display = esFormatoShow ? 'grid' : 'none';
+
+            const inputProveedor = document.getElementById('edit-proveedor');
+            const inputCalificacion = document.getElementById('edit-calificacion');
+            const inputGeneros = document.getElementById('edit-generos');
+            const inputTemaShow = document.getElementById('edit-tema-show');
+            const inputClasificacion = document.getElementById('edit-clasificacion');
+
+            inputProveedor.required = !esFormatoShow;
+            inputCalificacion.required = !esFormatoShow;
+            inputGeneros.required = !esFormatoShow;
+            inputTemaShow.required = esFormatoShow;
+            inputClasificacion.required = !esExposicion;
+
+            inputProveedor.disabled = esFormatoShow;
+            inputCalificacion.disabled = esFormatoShow;
+            inputGeneros.disabled = esFormatoShow;
+            inputTemaShow.disabled = !esFormatoShow;
+            inputClasificacion.disabled = esExposicion;
+
+            if (esFormatoShow) {
+                inputCalificacion.setCustomValidity('');
+            }
+
+            const editArtistaShowGroup = document.getElementById('edit-artista-show-group');
+            const editArtistaLabel = document.getElementById('edit-artista-show-label');
+            const editArtistaInput = document.getElementById('edit-artista-show');
+            const editTeatroElencoGroup = document.getElementById('edit-teatro-elenco-group');
+            const editTeatroAmbientacionGroup = document.getElementById('edit-teatro-ambientacion-group');
+            const editTemaExposicionGroup = document.getElementById('edit-tema-exposicion-group');
+            const editResponsableGroup = document.getElementById('edit-responsable-group');
+
+            if (editArtistaShowGroup) editArtistaShowGroup.style.display = 'none';
+            if (editTeatroElencoGroup) editTeatroElencoGroup.style.display = 'none';
+            if (editTeatroAmbientacionGroup) editTeatroAmbientacionGroup.style.display = 'none';
+            if (editTemaExposicionGroup) editTemaExposicionGroup.style.display = 'none';
+            if (editResponsableGroup) editResponsableGroup.style.display = 'none';
+
+            if (esShow && editArtistaShowGroup) {
+                editArtistaShowGroup.style.display = 'grid';
+                if (editArtistaLabel) editArtistaLabel.textContent = 'Artista (para Shows):';
+                if (editArtistaInput) editArtistaInput.placeholder = 'Nombre del artista o banda';
+            } else if (esTeatro) {
+                if (editTeatroElencoGroup) editTeatroElencoGroup.style.display = 'grid';
+                if (editTeatroAmbientacionGroup) editTeatroAmbientacionGroup.style.display = 'grid';
+            } else if (esExposicion && editArtistaShowGroup) {
+                editArtistaShowGroup.style.display = 'grid';
+                if (editArtistaLabel) editArtistaLabel.textContent = 'Bajo dirección de:';
+                if (editArtistaInput) editArtistaInput.placeholder = 'Nombre de la persona a cargo';
+            }
+
+            document.getElementById('edit-programacion-label').textContent = esFormatoShow ? 'Horarios por fecha:' : 'Programación de funciones:';
+            document.getElementById('edit-programacion-ayuda').textContent = esFormatoShow
+                ? 'Agrega una o varias Fechas y luego asigna horarios fijos o personalizados en intervalos de 15 minutos.'
+                : 'Selecciona la Fecha de Estreno y el Último día. Todas las fechas disponibles en ese rango se agregarán automáticamente. Luego elige los horarios para cada día.';
+        }
     </script>
 {% endblock %}
