@@ -2,25 +2,20 @@ import os
 import sys
 import base64
 
-from django.http import JsonResponse
+from django.http import Http404, JsonResponse
 from django.shortcuts import redirect, render
 
 from Salas import salas
 from Horarios import obtener_horarios_disponibles, obtener_horario
 from DB import (
-	autenticar_cliente,
 	autenticar_administrador,
-	cancelar_reserva_usuario,
-	crear_reserva_entrada,
 	es_registro_admin,
 	es_gmail_valido,
 	formatear_fecha_corta,
 	parsear_programacion_emision,
-	obtener_reservas_por_usuario,
 	obtener_peliculas_para_main,
 	obtener_rango_fechas_emision,
 	registrar_administrador,
-	registrar_cliente,
 )
 
 
@@ -85,14 +80,21 @@ def formatear_horario_ticket(valor_horario):
 	return valor
 
 
-def main_view(request):
-	usuario_actual = request.session.get('usuario', 'Invitado')
-	rol_actual = request.session.get('rol', '')
-	puede_reservar = rol_actual == 'cliente'
+def _normalizar_tipo_espectaculo(valor_tipo):
+	valor = str(valor_tipo or '').strip().lower()
+	if valor in ('show', 'teatro', 'exposicion', 'exposición'):
+		return 'exposicion' if valor in ('exposicion', 'exposición') else valor
+	if valor in ('pelicula', 'película'):
+		return 'pelicula'
+	return 'pelicula'
+
+
+def _mapear_peliculas_para_vistas(limit=40):
 	horarios_disponibles = obtener_horarios_disponibles()
 	horarios_por_nombre = {horario.nombre: horario for horario in horarios_disponibles}
-	peliculas_raw = obtener_peliculas_para_main(limit=40)
+	peliculas_raw = obtener_peliculas_para_main(limit=limit)
 	peliculas = []
+
 	for pelicula in peliculas_raw:
 		fecha_inicio, fecha_fin, _ = obtener_rango_fechas_emision(pelicula['Fechas_emision'], pelicula['Fecha_estreno'])
 		programacion = parsear_programacion_emision(pelicula['Programacion_emision'])
@@ -107,19 +109,33 @@ def main_view(request):
 					horarios_formateados.append({'nombre': horario.nombre, 'inicio': horario.inicio, 'fin': horario.fin})
 			programacion_detalle.append({'fecha': formatear_fecha_corta(fecha), 'horarios': horarios_formateados})
 
+		tipo_normalizado = _normalizar_tipo_espectaculo(pelicula['tipo_espectaculo'])
 		peliculas.append(
 			{
+				'id': pelicula['rowid'],
 				'nombre': pelicula['Nombre'],
+				'proveedor': pelicula['Proveedor'],
 				'generos': pelicula['Generos'],
 				'clasificacion': pelicula['Clasificacion'],
 				'duracion': formatear_duracion_corta(pelicula['Duracion']),
+				'descripcion': pelicula['Descripcion'] or '',
 				'calificacion': pelicula['Calificacion'],
 				'fecha_estreno': formatear_fecha_corta(fecha_inicio),
 				'fecha_hasta': formatear_fecha_corta(fecha_fin) if fecha_fin and fecha_fin != fecha_inicio else '',
 				'programacion_detalle': programacion_detalle,
 				'portada_src': construir_src_portada(pelicula['Portada'], pelicula['Portada_nombre']),
+				'tipo_espectaculo': tipo_normalizado,
+				'artista_show': pelicula['artista_show'] or '',
+				'ambientacion_teatro': pelicula['ambientacion_teatro'] or '',
 			}
 		)
+
+	return peliculas, horarios_disponibles
+
+
+def main_view(request):
+	usuario_actual = request.session.get('usuario', 'Invitado')
+	peliculas, horarios_disponibles = _mapear_peliculas_para_vistas(limit=40)
 
 	return render(
 		request,
@@ -129,65 +145,23 @@ def main_view(request):
 			'horarios': horarios_disponibles,
 			'peliculas': peliculas,
 			'usuario_actual': usuario_actual,
-			'puede_reservar': puede_reservar,
-			'precio_entrada': 200,
 		},
 	)
 
 
-def reservar_entrada_web(request):
-	if request.method != 'POST':
-		return JsonResponse({'ok': False, 'error': 'Metodo no permitido.'}, status=405)
+def detalle_espectaculo_view(request, espectaculo_id):
+	peliculas, _ = _mapear_peliculas_para_vistas(limit=500)
+	espectaculo = next((pelicula for pelicula in peliculas if pelicula['id'] == espectaculo_id), None)
+	if espectaculo is None:
+		raise Http404('Espectaculo no encontrado.')
 
-	if request.session.get('rol') != 'cliente':
-		return JsonResponse({'ok': False, 'error': 'Solo los usuarios registrados como Clientes pueden reservar entradas.'}, status=403)
-
-	pelicula = request.POST.get('pelicula', '').strip()
-	fecha_funcion = request.POST.get('fecha_funcion', '').strip()
-	horario_funcion = formatear_horario_ticket(request.POST.get('horario_funcion', '').strip())
-	if not pelicula:
-		return JsonResponse({'ok': False, 'error': 'Debes seleccionar una pelicula.'}, status=400)
-	if not fecha_funcion or not horario_funcion:
-		return JsonResponse({'ok': False, 'error': 'Debes seleccionar fecha y horario de función.'}, status=400)
-
-	usuario = request.session.get('usuario', 'Invitado')
-	reserva = crear_reserva_entrada(usuario, pelicula, fecha_funcion=fecha_funcion, horario_funcion=horario_funcion, precio=200)
-	if reserva is None:
-		return JsonResponse({'ok': False, 'error': 'No hay entradas disponibles para esta función.'}, status=409)
-
-	return JsonResponse({'ok': True, 'reserva': reserva})
-
-
-def entradas_reservadas_web(request):
-	if request.session.get('rol') != 'cliente':
-		return JsonResponse({'ok': False, 'error': 'Solo los Clientes pueden ver reservas.'}, status=403)
-
-	usuario = request.session.get('usuario', 'Invitado')
-	reservas = obtener_reservas_por_usuario(usuario)
-	for reserva in reservas:
-		reserva['horario_funcion'] = formatear_horario_ticket(reserva.get('horario_funcion'))
-	return JsonResponse({'ok': True, 'usuario': usuario, 'reservas': reservas})
-
-
-def cancelar_reserva_web(request):
-	if request.method != 'POST':
-		return JsonResponse({'ok': False, 'error': 'Metodo no permitido.'}, status=405)
-
-	if request.session.get('rol') != 'cliente':
-		return JsonResponse({'ok': False, 'error': 'Solo los Clientes pueden cancelar reservas.'}, status=403)
-
-	usuario = request.session.get('usuario', 'Invitado')
-	reserva_id_raw = request.POST.get('reserva_id', '').strip()
-
-	if not reserva_id_raw.isdigit():
-		return JsonResponse({'ok': False, 'error': 'Reserva inválida.'}, status=400)
-
-	reserva_id = int(reserva_id_raw)
-	ok = cancelar_reserva_usuario(usuario, reserva_id)
-	if not ok:
-		return JsonResponse({'ok': False, 'error': 'No se pudo cancelar la reserva.'}, status=404)
-
-	return JsonResponse({'ok': True})
+	return render(
+		request,
+		'espectaculo_detalle.html',
+		{
+			'espectaculo': espectaculo,
+		},
+	)
 
 
 def ingresar_admin(request):
@@ -200,6 +174,7 @@ def _render_login(
 	registro_error=None,
 	registro_ok=None,
 	active_tab='login',
+	login_mode='admin',
 ):
 	return render(
 		request,
@@ -209,6 +184,7 @@ def _render_login(
 			'registro_error': registro_error,
 			'registro_ok': registro_ok,
 			'active_tab': active_tab,
+			'login_mode': login_mode,
 		},
 	)
 
@@ -219,63 +195,26 @@ def validar_admin_web(request):
 
 	usuario = request.POST.get('usuario', '').strip()
 	contrasena = request.POST.get('contraseña', '').strip()
+	tipo_login = request.POST.get('tipo_login', 'admin').strip().lower()
 
-	admin = autenticar_administrador(usuario, contrasena)
-	if admin:
-		request.session['usuario'] = admin['nombre']
-		request.session['rol'] = 'admin'
-		return redirect('admin_panel')
-
-	cliente = autenticar_cliente(usuario, contrasena)
-	if cliente:
-		request.session['usuario'] = cliente['usuario']
-		request.session['rol'] = 'cliente'
-		request.session['cliente_gmail'] = cliente['gmail']
-		return redirect('main')
-
-	return _render_login(request, error='Usuario o contraseña incorrectos.', active_tab='login')
-
-
-def registrar_cliente_web(request):
-	if request.method != 'POST':
-		return redirect('ingresar_admin')
-
-	gmail = request.POST.get('gmail', '').strip().lower()
-	usuario = request.POST.get('nuevo_usuario', '').strip()
-	contrasena = request.POST.get('nueva_contraseña', '').strip()
-	confirmacion = request.POST.get('confirmar_contraseña', '').strip()
-
-	if not gmail or not usuario or not contrasena or not confirmacion:
-		return _render_login(request, registro_error='Todos los campos de registro son obligatorios.', active_tab='register')
-
-	if not es_gmail_valido(gmail):
-		return _render_login(request, registro_error='Debes ingresar un Gmail válido con formato usuario@gmail.com.', active_tab='register')
-
-	if len(contrasena) < 8:
-		return _render_login(request, registro_error='La contraseña debe tener al menos 8 caracteres.', active_tab='register')
-
-	if contrasena != confirmacion:
-		return _render_login(request, registro_error='La contraseña y su confirmación no coinciden.', active_tab='register')
-
-	if es_registro_admin(usuario, contrasena):
-		ok, mensaje = registrar_administrador(gmail, usuario, contrasena, nombre=usuario)
-		if not ok:
-			return _render_login(request, registro_error=mensaje, active_tab='register')
+	if tipo_login == 'admin':
+		admin = autenticar_administrador(usuario, contrasena)
+		if admin:
+			request.session['usuario'] = admin['nombre']
+			request.session['rol'] = 'admin'
+			return redirect('admin_panel')
 		return _render_login(
 			request,
-			registro_ok='Registro exitoso como Administrador. Ahora puedes ingresar con tu usuario o Gmail y contraseña.',
-			active_tab='register',
+			error='Credenciales de Administrador incorrectas.',
+			active_tab='login',
+			login_mode='admin',
 		)
-
-	ok, mensaje = registrar_cliente(gmail, usuario, contrasena)
-
-	if not ok:
-		return _render_login(request, registro_error=mensaje, active_tab='register')
 
 	return _render_login(
 		request,
-		registro_ok='Registro exitoso. Ahora puedes ingresar con tu usuario o Gmail y contraseña.',
-		active_tab='register',
+		error='Tipo de ingreso inválido.',
+		active_tab='login',
+		login_mode='admin',
 	)
 
 

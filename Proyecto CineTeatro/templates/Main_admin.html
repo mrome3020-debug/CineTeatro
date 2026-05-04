@@ -290,6 +290,32 @@
 				margin: 0;
 			}
 		}
+
+		@media (max-width: 420px) {
+			.header-title {
+				margin: 10px 44px 6px;
+				font-size: 16px;
+			}
+
+			.user-info {
+				margin: 0 8px 8px;
+				padding: 6px 8px;
+				font-size: 13px;
+			}
+
+			.menu-icon {
+				left: 8px;
+				top: 8px;
+			}
+
+			.section {
+				left: 8px;
+				right: 8px;
+				top: 8px;
+				max-height: calc(100vh - 16px);
+				padding: 12px;
+			}
+		}
 	</style>
 	{% block extra_head %}{% endblock %}
 </head>
