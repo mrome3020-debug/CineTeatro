@@ -20,6 +20,30 @@
 
 		* {
 			box-sizing: border-box;
+			cursor: default;
+			user-select: none;
+		}
+
+		/* Restaurar cursor y selección en elementos editables */
+		input, textarea, select {
+			cursor: text;
+			user-select: text;
+		}
+
+		input[type="checkbox"],
+		input[type="radio"],
+		input[type="range"],
+		input[type="file"],
+		input[type="color"],
+		input[type="submit"],
+		input[type="button"],
+		input[type="reset"] {
+			cursor: pointer;
+		}
+
+		a, button, label, summary,
+		[onclick], [role="button"] {
+			cursor: pointer;
 		}
 
 		body {

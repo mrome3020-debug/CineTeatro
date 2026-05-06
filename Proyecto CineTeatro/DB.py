@@ -1,7 +1,6 @@
 import sqlite3
 import json
 import re
-import random
 from datetime import datetime
 
 from django import forms
@@ -10,9 +9,11 @@ from django.core.validators import FileExtensionValidator
 from Horarios import obtener_horarios_disponibles
 
 
-HORARIOS_VALIDOS = tuple(horario.nombre for horario in obtener_horarios_disponibles())
+_horarios_init = obtener_horarios_disponibles()
+HORARIOS_VALIDOS = tuple(horario.nombre for horario in _horarios_init)
 HORARIOS_ORDEN = {nombre: indice for indice, nombre in enumerate(HORARIOS_VALIDOS)}
-HORARIOS_POR_NOMBRE = {horario.nombre: horario for horario in obtener_horarios_disponibles()}
+HORARIOS_POR_NOMBRE = {horario.nombre: horario for horario in _horarios_init}
+del _horarios_init
 PATRON_HORA_15M = re.compile(r"(?:[01]\d|2[0-3]):(?:00|15|30|45)$")
 
 
@@ -158,7 +159,14 @@ def obtener_conexion(row_factory=False):
     return conn
 
 
+_schema_admins_inicializado = False
+
+
 def ensure_administradores_schema():
+    global _schema_admins_inicializado
+    if _schema_admins_inicializado:
+        return
+    _schema_admins_inicializado = True
     conn = obtener_conexion()
     cursor = conn.cursor()
     cursor.execute(
@@ -383,26 +391,58 @@ def construir_programacion_base(fechas_emision, programacion_emision=None):
     return {fecha: [] for fecha in parsear_fechas_emision(fechas_emision)}
 
 
+_UNION_TODOS_ESPECTACULOS = """
+    SELECT
+        t.id AS rowid, p.Nombre, p.Proveedor, p.Generos, p.Clasificacion, p.Duracion,
+        p.Descripcion, p.Calificacion, p.Fecha_estreno, p.Fechas_emision,
+        p.Programacion_emision, p.Portada, p.Portada_nombre,
+        NULL AS artista_show, NULL AS ambientacion_teatro, 'pelicula' AS tipo_espectaculo
+    FROM Tipos_de_espectaculos t JOIN PELICULAS p ON t.tipo_id = p.rowid WHERE t.tipo = 'pelicula'
+    UNION ALL
+    SELECT
+        t.id AS rowid, s.Nombre, 0, s.tema, s.Clasificacion, s.Duracion,
+        s.Descripcion, 0.0, s.Fecha_estreno, s.Fechas_emision,
+        s.Programacion_emision, s.Portada, s.Portada_nombre,
+        s.artista_show, NULL, 'show'
+    FROM Tipos_de_espectaculos t JOIN SHOWS s ON t.tipo_id = s.rowid WHERE t.tipo = 'show'
+    UNION ALL
+    SELECT
+        t.id AS rowid, te.Nombre, 0, te.tema, te.Clasificacion, te.Duracion,
+        te.Descripcion, 0.0, te.Fecha_estreno, te.Fechas_emision,
+        te.Programacion_emision, te.Portada, te.Portada_nombre,
+        te.artista_show, te.ambientacion_teatro, 'teatro'
+    FROM Tipos_de_espectaculos t JOIN TEATRO te ON t.tipo_id = te.rowid WHERE t.tipo = 'teatro'
+    UNION ALL
+    SELECT
+        t.id AS rowid, e.Nombre, 0, e.tema, 'G', e.Duracion,
+        e.Descripcion, 0.0, e.Fecha_estreno, e.Fechas_emision,
+        e.Programacion_emision, e.Portada, e.Portada_nombre,
+        e.artista_show, NULL, 'exposicion'
+    FROM Tipos_de_espectaculos t JOIN EXPOSICIONES e ON t.tipo_id = e.rowid WHERE t.tipo = 'exposicion'
+"""
+
+
 def obtener_ocupacion_horarios(excluir_pelicula_id=None):
     ensure_fechas_emision_schema()
+    ensure_espectaculos_schema()
 
     conn = obtener_conexion(row_factory=True)
     cursor = conn.cursor()
-    cursor.execute('SELECT rowid, Nombre, Programacion_emision FROM PELICULAS')
+    cursor.execute(f'SELECT rowid, Nombre, Programacion_emision FROM ({_UNION_TODOS_ESPECTACULOS})')
     filas = cursor.fetchall()
     conn.close()
 
     ocupacion = {}
     for fila in filas:
-        pelicula_id = fila['rowid']
-        if excluir_pelicula_id is not None and pelicula_id == excluir_pelicula_id:
+        global_id = fila['rowid']
+        if excluir_pelicula_id is not None and global_id == excluir_pelicula_id:
             continue
 
         for fecha, horarios in parsear_programacion_emision(fila['Programacion_emision']).items():
             ocupacion_fecha = ocupacion.setdefault(fecha, {})
             for horario in horarios:
                 ocupacion_fecha[horario] = {
-                    'pelicula_id': pelicula_id,
+                    'pelicula_id': global_id,
                     'pelicula_nombre': fila['Nombre'],
                 }
 
@@ -455,7 +495,14 @@ def formatear_fecha_corta(fecha_valor):
         return ''
 
 
+_schema_fechas_inicializado = False
+
+
 def ensure_fechas_emision_schema():
+    global _schema_fechas_inicializado
+    if _schema_fechas_inicializado:
+        return
+    _schema_fechas_inicializado = True
     conn = obtener_conexion()
     cursor = conn.cursor()
     cursor.execute("PRAGMA table_info(PELICULAS)")
@@ -523,70 +570,225 @@ def ensure_fechas_emision_schema():
 
 
 
+_schema_espectaculos_inicializado = False
+
+
 def ensure_espectaculos_schema():
-    """Agrega columnas a PELICULAS para soportar diferentes tipos de espectáculos."""
+    """Crea las tablas separadas por tipo de espectáculo y migra datos existentes si es necesario."""
+    global _schema_espectaculos_inicializado
+    if _schema_espectaculos_inicializado:
+        return
+    _schema_espectaculos_inicializado = True
     conn = obtener_conexion()
     cursor = conn.cursor()
-	
-    cursor.execute("PRAGMA table_info(PELICULAS)")
-    columnas = {col[1] for col in cursor.fetchall()}
-	
-    # Agregar columna tipo_espectaculo (película, show, teatro, exposición)
-    if 'tipo_espectaculo' not in columnas:
-        cursor.execute("ALTER TABLE PELICULAS ADD COLUMN tipo_espectaculo TEXT DEFAULT 'película'")
-	
-    # Para Shows: artista/presentador
-    if 'artista_show' not in columnas:
-        cursor.execute("ALTER TABLE PELICULAS ADD COLUMN artista_show TEXT")
-	
-    # Para Exposición: tema/descripción adicional y responsable
-    if 'tema_exposicion' not in columnas:
-        cursor.execute("ALTER TABLE PELICULAS ADD COLUMN tema_exposicion TEXT")
-	
-    if 'responsable' not in columnas:
-        cursor.execute("ALTER TABLE PELICULAS ADD COLUMN responsable TEXT")
-	
-    # Para Teatro: ambientación histórica/temporal
-    if 'ambientacion_teatro' not in columnas:
-        cursor.execute("ALTER TABLE PELICULAS ADD COLUMN ambientacion_teatro TEXT")
-	
-    # Crear tabla TIPO_ESPECTACULO si no existe
+
+    # Tabla general de registro de todos los espectáculos (ID global)
     cursor.execute(
         """
-        CREATE TABLE IF NOT EXISTS TIPO_ESPECTACULO (
-            id INTEGER PRIMARY KEY,
-            nombre TEXT NOT NULL UNIQUE,
-            descripcion TEXT
+        CREATE TABLE IF NOT EXISTS Tipos_de_espectaculos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo TEXT NOT NULL,
+            tipo_id INTEGER NOT NULL
         )
         """
     )
-	
-    # Insertar tipos de espectáculos si no existen
-    tipos = [
-        ('película', 'Películas de cine'),
-        ('show', 'Shows y presentaciones en vivo'),
-        ('teatro', 'Obras de teatro'),
-        ('exposición', 'Exposiciones y exhibiciones'),
-    ]
-	
-    for nombre, descripcion in tipos:
-        cursor.execute(
-            "INSERT OR IGNORE INTO TIPO_ESPECTACULO (nombre, descripcion) VALUES (?, ?)",
-            (nombre, descripcion),
+
+    # Tabla específica para Shows
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS SHOWS (
+            Nombre TEXT NOT NULL,
+            artista_show TEXT,
+            tema TEXT,
+            Clasificacion TEXT,
+            Duracion TEXT,
+            Descripcion TEXT,
+            Fecha_estreno TEXT,
+            Fechas_emision TEXT,
+            Programacion_emision TEXT,
+            Portada BLOB,
+            Portada_nombre TEXT
         )
-	
+        """
+    )
+
+    # Tabla específica para Teatro
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS TEATRO (
+            Nombre TEXT NOT NULL,
+            artista_show TEXT,
+            tema TEXT,
+            ambientacion_teatro TEXT,
+            Clasificacion TEXT,
+            Duracion TEXT,
+            Descripcion TEXT,
+            Fecha_estreno TEXT,
+            Fechas_emision TEXT,
+            Programacion_emision TEXT,
+            Portada BLOB,
+            Portada_nombre TEXT
+        )
+        """
+    )
+
+    # Tabla específica para Exposiciones
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS EXPOSICIONES (
+            Nombre TEXT NOT NULL,
+            tema TEXT,
+            artista_show TEXT,
+            Duracion TEXT,
+            Descripcion TEXT,
+            Fecha_estreno TEXT,
+            Fechas_emision TEXT,
+            Programacion_emision TEXT,
+            Portada BLOB,
+            Portada_nombre TEXT
+        )
+        """
+    )
+
+    # Migración desde tabla única PELICULAS al esquema multi-tabla
+    cursor.execute("SELECT COUNT(*) FROM Tipos_de_espectaculos")
+    ya_migrado = cursor.fetchone()[0] > 0
+
+    if not ya_migrado:
+        cursor.execute("PRAGMA table_info(PELICULAS)")
+        columnas_peliculas = {col[1] for col in cursor.fetchall()}
+
+        if 'tipo_espectaculo' in columnas_peliculas:
+            # Migrar shows
+            cursor.execute(
+                "SELECT rowid, Nombre, artista_show, Generos, Clasificacion, Duracion, Descripcion,"
+                " Fecha_estreno, Fechas_emision, Programacion_emision, Portada, Portada_nombre"
+                " FROM PELICULAS WHERE tipo_espectaculo = 'show'"
+            )
+            for row in cursor.fetchall():
+                cursor.execute(
+                    "INSERT INTO SHOWS (Nombre, artista_show, tema, Clasificacion, Duracion, Descripcion,"
+                    " Fecha_estreno, Fechas_emision, Programacion_emision, Portada, Portada_nombre)"
+                    " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    row[1:],
+                )
+                cursor.execute(
+                    "INSERT INTO Tipos_de_espectaculos (tipo, tipo_id) VALUES ('show', ?)",
+                    (cursor.lastrowid,),
+                )
+
+            # Migrar teatro
+            cursor.execute(
+                "SELECT rowid, Nombre, artista_show, Generos, ambientacion_teatro, Clasificacion, Duracion,"
+                " Descripcion, Fecha_estreno, Fechas_emision, Programacion_emision, Portada, Portada_nombre"
+                " FROM PELICULAS WHERE tipo_espectaculo = 'teatro'"
+            )
+            for row in cursor.fetchall():
+                cursor.execute(
+                    "INSERT INTO TEATRO (Nombre, artista_show, tema, ambientacion_teatro, Clasificacion,"
+                    " Duracion, Descripcion, Fecha_estreno, Fechas_emision, Programacion_emision, Portada, Portada_nombre)"
+                    " VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    row[1:],
+                )
+                cursor.execute(
+                    "INSERT INTO Tipos_de_espectaculos (tipo, tipo_id) VALUES ('teatro', ?)",
+                    (cursor.lastrowid,),
+                )
+
+            # Migrar exposiciones
+            exposicion_col = 'tema_exposicion' if 'tema_exposicion' in columnas_peliculas else 'Generos'
+            cursor.execute(
+                f"SELECT rowid, Nombre, {exposicion_col}, artista_show, Duracion, Descripcion,"
+                " Fecha_estreno, Fechas_emision, Programacion_emision, Portada, Portada_nombre"
+                " FROM PELICULAS WHERE tipo_espectaculo IN ('exposicion', 'exposición')"
+            )
+            for row in cursor.fetchall():
+                cursor.execute(
+                    "INSERT INTO EXPOSICIONES (Nombre, tema, artista_show, Duracion, Descripcion,"
+                    " Fecha_estreno, Fechas_emision, Programacion_emision, Portada, Portada_nombre)"
+                    " VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    row[1:],
+                )
+                cursor.execute(
+                    "INSERT INTO Tipos_de_espectaculos (tipo, tipo_id) VALUES ('exposicion', ?)",
+                    (cursor.lastrowid,),
+                )
+
+            # Eliminar registros migrados de PELICULAS
+            cursor.execute(
+                "DELETE FROM PELICULAS WHERE tipo_espectaculo IN ('show', 'teatro', 'exposicion', 'exposición')"
+            )
+
+        # Registrar todas las películas restantes en Tipos_de_espectaculos
+        cursor.execute("SELECT rowid FROM PELICULAS")
+        for (pel_rowid,) in cursor.fetchall():
+            cursor.execute(
+                "INSERT INTO Tipos_de_espectaculos (tipo, tipo_id) VALUES ('pelicula', ?)",
+                (pel_rowid,),
+            )
+
     conn.commit()
     conn.close()
 
 
-def obtener_programacion_pelicula(pelicula_id):
+def obtener_tipo_e_id(global_id):
+    """Devuelve (tipo, tipo_id) desde Tipos_de_espectaculos para el ID global dado."""
+    ensure_espectaculos_schema()
+    conn = obtener_conexion(row_factory=True)
+    cursor = conn.cursor()
+    cursor.execute("SELECT tipo, tipo_id FROM Tipos_de_espectaculos WHERE id = ?", (global_id,))
+    fila = cursor.fetchone()
+    conn.close()
+    if fila is None:
+        return None, None
+    return fila['tipo'], fila['tipo_id']
+
+
+_TABLA_POR_TIPO = {
+    'pelicula': 'PELICULAS',
+    'show': 'SHOWS',
+    'teatro': 'TEATRO',
+    'exposicion': 'EXPOSICIONES',
+}
+
+
+def eliminar_espectaculo_por_id(global_id):
+    """Elimina un espectáculo de su tabla específica y de Tipos_de_espectaculos."""
+    tipo, tipo_id = obtener_tipo_e_id(global_id)
+    if tipo is None:
+        return False
+    tabla = _TABLA_POR_TIPO.get(tipo)
+    if tabla is None:
+        return False
+    conn = obtener_conexion()
+    cursor = conn.cursor()
+    cursor.execute(f'DELETE FROM {tabla} WHERE rowid = ?', (tipo_id,))
+    cursor.execute('DELETE FROM Tipos_de_espectaculos WHERE id = ?', (global_id,))
+    conn.commit()
+    conn.close()
+    return True
+
+
+def obtener_todos_espectaculos_admin():
+    """Devuelve todos los espectáculos de todas las tablas para la vista de administración."""
+    ensure_fechas_emision_schema()
+    ensure_espectaculos_schema()
+    conn = obtener_conexion(row_factory=True)
+    cursor = conn.cursor()
+    cursor.execute(f'SELECT * FROM ({_UNION_TODOS_ESPECTACULOS})')
+    filas = cursor.fetchall()
+    conn.close()
+    return filas
+
+
+def obtener_programacion_pelicula(global_id):
     ensure_fechas_emision_schema()
     ensure_espectaculos_schema()
     conn = obtener_conexion(row_factory=True)
     cursor = conn.cursor()
     cursor.execute(
-        'SELECT Fechas_emision, Programacion_emision FROM PELICULAS WHERE rowid = ?',
-        (pelicula_id,),
+        f'SELECT Fechas_emision, Programacion_emision FROM ({_UNION_TODOS_ESPECTACULOS}) WHERE rowid = ?',
+        (global_id,),
     )
     fila = cursor.fetchone()
     conn.close()
@@ -597,90 +799,70 @@ def obtener_programacion_pelicula(pelicula_id):
     return construir_programacion_base(fila['Fechas_emision'], fila['Programacion_emision'])
 
 
-def obtener_peliculas_para_main(limit=10):
+def obtener_peliculas_para_main(limit=10, rowid=None):
     ensure_fechas_emision_schema()
+    ensure_espectaculos_schema()
     conn = obtener_conexion(row_factory=True)
     cursor = conn.cursor()
-    cursor.execute(
-        """
-        SELECT rowid, Nombre, Proveedor, Generos, Clasificacion, Duracion, Descripcion, Calificacion, Fecha_estreno, Fechas_emision, Programacion_emision, Portada, Portada_nombre, artista_show, ambientacion_teatro, COALESCE(tipo_espectaculo, 'película') AS tipo_espectaculo
-        FROM PELICULAS
-        LIMIT ?
-        """,
-        (limit,),
-    )
+    if rowid is not None:
+        cursor.execute(
+            f'SELECT * FROM ({_UNION_TODOS_ESPECTACULOS}) WHERE rowid = ?',
+            (rowid,),
+        )
+    else:
+        cursor.execute(
+            f'SELECT * FROM ({_UNION_TODOS_ESPECTACULOS}) LIMIT ?',
+            (limit,),
+        )
     peliculas = list(cursor.fetchall())
     conn.close()
-    
+
     def obtener_fecha_ordenamiento(pelicula):
         fecha_str = pelicula['Fecha_estreno'] or ''
         if not fecha_str:
             fechas = parsear_fechas_emision(pelicula['Fechas_emision'])
             fecha_str = fechas[0] if fechas else '31/12/9999'
         return _convertir_fecha_para_comparar(fecha_str)
-    
-    peliculas_ordenadas = sorted(peliculas, key=obtener_fecha_ordenamiento)
-    return peliculas_ordenadas
+
+    return sorted(peliculas, key=obtener_fecha_ordenamiento)
 
 
-def eliminar_portada_por_rowid(rowid):
-    """Elimina portada y nombre de portada para una pelicula por rowid.
-    Devuelve True si se pudo ejecutar la operación.
-    """
+def eliminar_portada_por_rowid(global_id):
+    """Elimina portada de un espectáculo usando su ID global."""
+    tipo, tipo_id = obtener_tipo_e_id(global_id)
+    if tipo is None:
+        return True
+    tabla = _TABLA_POR_TIPO.get(tipo)
+    if tabla is None:
+        return True
     conn = obtener_conexion()
     cursor = conn.cursor()
-
-    cursor.execute("PRAGMA table_info(PELICULAS)")
-    columnas = [col[1] for col in cursor.fetchall()]
-
-    sets = []
-    if 'Portada' in columnas:
-        sets.append("Portada = NULL")
-    if 'Portada_nombre' in columnas:
-        sets.append("Portada_nombre = NULL")
-
-    # Si no existen columnas de portada, no bloqueamos el flujo de edición.
-    if not sets:
-        conn.close()
-        return True
-
-    query = f"UPDATE PELICULAS SET {', '.join(sets)} WHERE rowid = ?"
-    cursor.execute(query, (rowid,))
+    cursor.execute(f'UPDATE {tabla} SET Portada = NULL, Portada_nombre = NULL WHERE rowid = ?', (tipo_id,))
     conn.commit()
     conn.close()
     return True
 
 
 def normalizar_portadas_nulas():
-    """Convierte valores vacíos de portada en NULL para evitar falsos positivos de imagen."""
-    conn = obtener_conexion()
-    cursor = conn.cursor()
-    cursor.execute("PRAGMA table_info(PELICULAS)")
-    columnas = [col[1] for col in cursor.fetchall()]
-
-    if 'Portada' in columnas:
-        cursor.execute("UPDATE PELICULAS SET Portada = NULL WHERE Portada = ''")
-    if 'Portada_nombre' in columnas:
-        cursor.execute("UPDATE PELICULAS SET Portada_nombre = NULL WHERE Portada_nombre = ''")
-
-    conn.commit()
-    conn.close()
+    """Convierte valores vacíos de portada en NULL en todas las tablas de espectáculos."""
+    for tabla in ('PELICULAS', 'SHOWS', 'TEATRO', 'EXPOSICIONES'):
+        conn = obtener_conexion()
+        cursor = conn.cursor()
+        cursor.execute(f"PRAGMA table_info({tabla})")
+        columnas = [col[1] for col in cursor.fetchall()]
+        if not columnas:
+            conn.close()
+            continue
+        if 'Portada' in columnas:
+            cursor.execute(f"UPDATE {tabla} SET Portada = NULL WHERE Portada = ''")
+        if 'Portada_nombre' in columnas:
+            cursor.execute(f"UPDATE {tabla} SET Portada_nombre = NULL WHERE Portada_nombre = ''")
+        conn.commit()
+        conn.close()
 
 
 def normalizar_clasificacion_mpa():
-    """Convierte clasificaciones numéricas antiguas al estándar MPA."""
-    conn = obtener_conexion()
-    cursor = conn.cursor()
-    cursor.execute("PRAGMA table_info(PELICULAS)")
-    columnas = [col[1] for col in cursor.fetchall()]
-
-    if 'Clasificacion' not in columnas:
-        conn.close()
-        return
-
-    cursor.execute("SELECT rowid, Clasificacion FROM PELICULAS")
-    filas = cursor.fetchall()
-
+    """Convierte clasificaciones numéricas antiguas al estándar MPA en todas las tablas."""
     def mapear_a_mpa(valor):
         if valor in ('G', 'PG', 'PG-13', 'R', 'NC-17'):
             return valor
@@ -688,7 +870,6 @@ def normalizar_clasificacion_mpa():
             numero = int(valor)
         except (TypeError, ValueError):
             return valor
-
         if numero <= 7:
             return 'G'
         if numero <= 12:
@@ -699,51 +880,52 @@ def normalizar_clasificacion_mpa():
             return 'R'
         return 'NC-17'
 
-    for rowid, clasificacion in filas:
-        nueva = mapear_a_mpa(clasificacion)
-        if nueva != clasificacion:
-            cursor.execute("UPDATE PELICULAS SET Clasificacion = ? WHERE rowid = ?", (nueva, rowid))
-
-    conn.commit()
-    conn.close()
+    for tabla in ('PELICULAS', 'SHOWS', 'TEATRO'):
+        conn = obtener_conexion()
+        cursor = conn.cursor()
+        cursor.execute(f"PRAGMA table_info({tabla})")
+        columnas = [col[1] for col in cursor.fetchall()]
+        if 'Clasificacion' not in columnas:
+            conn.close()
+            continue
+        cursor.execute(f"SELECT rowid, Clasificacion FROM {tabla}")
+        for rowid, clasificacion in cursor.fetchall():
+            nueva = mapear_a_mpa(clasificacion)
+            if nueva != clasificacion:
+                cursor.execute(f"UPDATE {tabla} SET Clasificacion = ? WHERE rowid = ?", (nueva, rowid))
+        conn.commit()
+        conn.close()
 
 
 def normalizar_duracion_hhmm():
-    """Convierte duración histórica en minutos al formato HH:MM."""
-    conn = obtener_conexion()
-    cursor = conn.cursor()
-    cursor.execute("PRAGMA table_info(PELICULAS)")
-    columnas = [col[1] for col in cursor.fetchall()]
-
-    if 'Duracion' not in columnas:
-        conn.close()
-        return
-
-    cursor.execute("SELECT rowid, Duracion FROM PELICULAS")
-    filas = cursor.fetchall()
-
-    for rowid, duracion in filas:
-        if duracion is None:
+    """Convierte duración histórica en minutos al formato HH:MM en todas las tablas."""
+    for tabla in ('PELICULAS', 'SHOWS', 'TEATRO', 'EXPOSICIONES'):
+        conn = obtener_conexion()
+        cursor = conn.cursor()
+        cursor.execute(f"PRAGMA table_info({tabla})")
+        columnas = [col[1] for col in cursor.fetchall()]
+        if 'Duracion' not in columnas:
+            conn.close()
             continue
-
-        valor = str(duracion).strip()
-        if ':' in valor:
-            partes = valor.split(':')
-            if len(partes) == 2 and partes[0].isdigit() and partes[1].isdigit() and 0 <= int(partes[1]) <= 59:
-                cursor.execute("UPDATE PELICULAS SET Duracion = ? WHERE rowid = ?", (f"{int(partes[0]):02d}:{int(partes[1]):02d}", rowid))
+        cursor.execute(f"SELECT rowid, Duracion FROM {tabla}")
+        for rowid, duracion in cursor.fetchall():
+            if duracion is None:
                 continue
-
-        try:
-            minutos_totales = int(float(valor))
-        except ValueError:
-            continue
-
-        horas = minutos_totales // 60
-        minutos = minutos_totales % 60
-        cursor.execute("UPDATE PELICULAS SET Duracion = ? WHERE rowid = ?", (f"{horas:02d}:{minutos:02d}", rowid))
-
-    conn.commit()
-    conn.close()
+            valor = str(duracion).strip()
+            if ':' in valor:
+                partes = valor.split(':')
+                if len(partes) == 2 and partes[0].isdigit() and partes[1].isdigit() and 0 <= int(partes[1]) <= 59:
+                    cursor.execute(f"UPDATE {tabla} SET Duracion = ? WHERE rowid = ?", (f"{int(partes[0]):02d}:{int(partes[1]):02d}", rowid))
+                    continue
+            try:
+                minutos_totales = int(float(valor))
+            except ValueError:
+                continue
+            horas = minutos_totales // 60
+            minutos = minutos_totales % 60
+            cursor.execute(f"UPDATE {tabla} SET Duracion = ? WHERE rowid = ?", (f"{horas:02d}:{minutos:02d}", rowid))
+        conn.commit()
+        conn.close()
 
 
 def inicializar_db():

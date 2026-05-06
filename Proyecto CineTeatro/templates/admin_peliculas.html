@@ -74,6 +74,7 @@
             cursor: pointer;
             transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
             justify-items: center;
+            position: relative;
         }
 
         .pelicula-card:hover {
@@ -110,6 +111,7 @@
             background: linear-gradient(160deg, #d7ecf8, #f5fbff);
             border: 1px solid #d7e8f3;
             margin: 0 auto;
+            position: relative;
         }
 
         .pelicula-poster img {
@@ -204,38 +206,26 @@
             display: none;
         }
 
-        .pelicula-actions-panel {
+        /* ── Overlay de acciones sobre el poster seleccionado ── */
+        .card-overlay-actions {
             display: none;
+            position: absolute;
+            inset: 0;
+            border-radius: 16px;
+            background: rgba(10, 30, 46, 0.78);
+            backdrop-filter: blur(3px);
+            z-index: 10;
+            flex-direction: column;
             align-items: center;
-            justify-content: space-between;
-            gap: 18px;
-            padding: 18px 20px;
-            border-radius: 18px;
-            border: 1px solid #bcd9ea;
-            background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(235, 247, 255, 0.96));
-            box-shadow: 0 16px 32px rgba(26, 77, 110, 0.12);
-        }
-
-        .pelicula-actions-panel.visible {
-            display: flex;
-        }
-
-        .pelicula-actions-copy {
-            display: grid;
-            gap: 6px;
-        }
-
-        .pelicula-actions-copy h3 {
-            margin: 0;
-            font-size: 20px;
-            color: #0f2d43;
-        }
-
-        .pelicula-actions-buttons {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: flex-end;
+            justify-content: center;
             gap: 10px;
+            padding: 16px;
+            pointer-events: none;
+        }
+
+        .card-overlay-actions.visible {
+            display: flex;
+            pointer-events: auto;
         }
 
         .action-button {
@@ -243,6 +233,7 @@
             padding: 12px 16px;
             border-radius: 12px;
             font-size: 14px;
+            width: 100%;
         }
 
         .action-button-edit {
@@ -269,7 +260,14 @@
             color: #0f2d43;
             border: 1px solid #b7daf0;
             font-weight: 700;
+            width: 100%;
+            box-sizing: border-box;
         }
+
+        /* Panel legado — oculto, mantenido por compatibilidad */
+        .pelicula-actions-panel { display: none !important; }
+        .pelicula-actions-copy { display: none; }
+        .pelicula-actions-buttons { display: none; }
 
         .fecha-selector {
             display: flex;
@@ -740,16 +738,18 @@
 
             .pelicula-actions-panel,
             .pelicula-actions-panel.visible {
-                display: grid;
+                display: none !important;
             }
 
-            .pelicula-actions-buttons {
-                justify-content: stretch;
+            .card-overlay-actions {
+                gap: 8px;
+                padding: 10px;
             }
 
             .action-button,
             .action-button-portadas {
-                width: 100%;
+                padding: 9px 12px;
+                font-size: 13px;
             }
 
             .fecha-selector {
@@ -902,16 +902,12 @@
                 <h2>Espectáculos registrados</h2>
             </div>
 
-            <div class="pelicula-actions-panel" id="pelicula-actions-panel">
-                <div class="pelicula-actions-copy">
-                    <h3 id="selected-pelicula-nombre">Sin selección</h3>
-                </div>
-                <div class="pelicula-actions-buttons">
-                    <button type="button" class="action-button action-button-edit" onclick="abrirEdicionSeleccionada()">Editar Espectáculo</button>
-                    <button type="button" class="action-button action-button-delete" onclick="abrirEliminacionSeleccionada()">Eliminar Espectáculo</button>
-                    <a href="{% url 'ver_portadas' %}" class="action-button-portadas">Ver Portadas</a>
-                </div>
+            <!-- panel legado oculto -->
+            <div class="pelicula-actions-panel" id="pelicula-actions-panel" aria-hidden="true">
+                <div class="pelicula-actions-copy"><h3 id="selected-pelicula-nombre"></h3></div>
             </div>
+            <!-- URL pre-renderizada para uso en JS -->
+            <span id="ver-portadas-url" data-url="{% url 'ver_portadas' %}" hidden></span>
 
             <div class="peliculas-grid" id="peliculas-grid">
                 {% for pelicula in peliculas %}
@@ -2281,14 +2277,54 @@
             asegurarDisponibilidadProgramacion('edit');
         }
 
+        function cerrarOverlayAcciones() {
+            document.querySelectorAll('.pelicula-card').forEach((card) => {
+                card.classList.remove('selected');
+                const ov = card.querySelector('.card-overlay-actions');
+                if (ov) ov.classList.remove('visible');
+            });
+            peliculaSeleccionada = null;
+        }
+
         function seleccionarTarjetaPelicula(element) {
+            // Si ya estaba seleccionada, toggle: cierra el overlay
+            if (peliculaSeleccionada === element) {
+                cerrarOverlayAcciones();
+                return;
+            }
+
+            cerrarOverlayAcciones();
             peliculaSeleccionada = element;
-            document.querySelectorAll('.pelicula-card').forEach((card) => card.classList.remove('selected'));
             element.classList.add('selected');
 
-            document.getElementById('selected-pelicula-nombre').textContent = element.dataset.nombre;
-            document.getElementById('pelicula-actions-panel').classList.add('visible');
+            // ── Mantener nombre actualizado (usado por formularios) ──
+            const labelEl = document.getElementById('selected-pelicula-nombre');
+            if (labelEl) labelEl.textContent = element.dataset.nombre;
+
+            // ── Mostrar overlay sobre el poster de la tarjeta seleccionada ──
+            const poster = element.querySelector('.pelicula-poster');
+            if (poster) {
+                let overlay = poster.querySelector('.card-overlay-actions');
+                if (!overlay) {
+                    overlay = document.createElement('div');
+                    overlay.className = 'card-overlay-actions';
+                    const verPortadasUrl = document.getElementById('ver-portadas-url').dataset.url;
+                    overlay.innerHTML =
+                        '<button type="button" class="action-button action-button-edit" onclick="abrirEdicionSeleccionada()">Editar Espect\u00e1culo</button>' +
+                        '<button type="button" class="action-button action-button-delete" onclick="abrirEliminacionSeleccionada()">Eliminar Espect\u00e1culo</button>' +
+                        '<a href="' + verPortadasUrl + '" class="action-button-portadas">Ver Portadas</a>';
+                    poster.appendChild(overlay);
+                }
+                overlay.classList.add('visible');
+            }
         }
+
+        // Cerrar overlay al hacer click fuera de cualquier tarjeta
+        document.addEventListener('click', function (e) {
+            if (!e.target.closest('.pelicula-card')) {
+                cerrarOverlayAcciones();
+            }
+        });
 
         function abrirEdicionSeleccionada() {
             if (!peliculaSeleccionada) {

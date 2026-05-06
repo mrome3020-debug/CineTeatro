@@ -9,6 +9,7 @@ from django.utils.text import get_valid_filename
 from DB import (
     construir_programacion_base,
     eliminar_portada_por_rowid,
+    eliminar_espectaculo_por_id,
     ensure_fechas_emision_schema,
     ensure_espectaculos_schema,
     fechas_desde_programacion_emision,
@@ -16,6 +17,9 @@ from DB import (
     obtener_conexion,
     obtener_ocupacion_horarios,
     obtener_rango_fechas_emision,
+    obtener_tipo_e_id,
+    obtener_todos_espectaculos_admin,
+    _TABLA_POR_TIPO,
     PeliculaCreateForm,
     PeliculaEditForm,
     ShowCreateForm,
@@ -138,11 +142,9 @@ def admin(request):
 
     ensure_fechas_emision_schema()
     ensure_espectaculos_schema()
-    conn = get_db_connection()
-    peliculas = conn.execute('SELECT rowid, * FROM PELICULAS').fetchall()
-    conn.close()
+    espectaculos = obtener_todos_espectaculos_admin()
 
-    peliculas_contexto = [_normalizar_pelicula(pelicula) for pelicula in peliculas]
+    peliculas_contexto = [_normalizar_pelicula(esp) for esp in espectaculos]
     return render(
         request,
         'admin_peliculas.html',
@@ -177,21 +179,19 @@ def ver_portadas(request):
         return redirect('ingresar_admin')
 
     ensure_fechas_emision_schema()
-    conn = get_db_connection()
-    filas = conn.execute(
-        'SELECT rowid, Nombre, Portada, Portada_nombre, Fecha_estreno, Fechas_emision FROM PELICULAS'
-    ).fetchall()
-    conn.close()
+    ensure_espectaculos_schema()
+    filas = obtener_todos_espectaculos_admin()
 
     portadas = []
     for fila in filas:
-        src = construir_src_portada(fila['Portada'], fila['Portada_nombre'])
+        fila_dict = dict(fila)
+        src = construir_src_portada(fila_dict.get('Portada'), fila_dict.get('Portada_nombre'))
         if src:
-            estreno, hasta, _ = obtener_rango_fechas_emision(fila['Fechas_emision'], fila['Fecha_estreno'])
+            estreno, hasta, _ = obtener_rango_fechas_emision(fila_dict.get('Fechas_emision'), fila_dict.get('Fecha_estreno'))
             portadas.append(
                 {
-                    'id': fila['rowid'],
-                    'nombre': fila['Nombre'],
+                    'id': fila_dict['rowid'],
+                    'nombre': fila_dict['Nombre'],
                     'src': src,
                     'estreno': formatear_fecha_corta(estreno),
                     'hasta': formatear_fecha_corta(hasta) if hasta and hasta != estreno else '',
@@ -235,8 +235,9 @@ def add_pelicula(request):
     ensure_fechas_emision_schema()
     ensure_espectaculos_schema()
     conn = get_db_connection()
-    conn.execute(
-        'INSERT INTO PELICULAS (Nombre, Proveedor, Generos, Clasificacion, Duracion, Descripcion, Calificacion, Fecha_estreno, Fechas_emision, Programacion_emision, Portada, Portada_nombre, tipo_espectaculo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    cursor = conn.cursor()
+    cursor.execute(
+        'INSERT INTO PELICULAS (Nombre, Proveedor, Generos, Clasificacion, Duracion, Descripcion, Calificacion, Fecha_estreno, Fechas_emision, Programacion_emision, Portada, Portada_nombre) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         (
             datos['nombre'],
             datos['proveedor'],
@@ -250,9 +251,10 @@ def add_pelicula(request):
             programacion_emision_texto,
             portada_bytes,
             portada_nombre,
-            'película',
         ),
     )
+    tipo_id = cursor.lastrowid
+    cursor.execute("INSERT INTO Tipos_de_espectaculos (tipo, tipo_id) VALUES ('pelicula', ?)", (tipo_id,))
     conn.commit()
     conn.close()
     return redirect('admin_panel')
@@ -270,6 +272,7 @@ def edit_pelicula(request):
 
     datos = form.cleaned_data
     pelicula_id = datos['id']
+    _, tipo_id = obtener_tipo_e_id(pelicula_id)
     programacion_emision = datos.get('programacion_emision') or {}
     fechas_emision = fechas_desde_programacion_emision(programacion_emision)
     fecha_estreno = fechas_emision[0] if fechas_emision else None
@@ -290,7 +293,7 @@ def edit_pelicula(request):
     if not programacion_emision:
         fila_actual = conn.execute(
             'SELECT Fecha_estreno, Fechas_emision, Programacion_emision FROM PELICULAS WHERE rowid=?',
-            (pelicula_id,),
+            (tipo_id,),
         ).fetchone()
         if fila_actual:
             fecha_estreno = fila_actual['Fecha_estreno']
@@ -311,7 +314,7 @@ def edit_pelicula(request):
                 fecha_estreno,
                 fechas_emision_texto,
                 programacion_emision_texto,
-                pelicula_id,
+                tipo_id,
             ),
         )
         conn.commit()
@@ -322,7 +325,7 @@ def edit_pelicula(request):
 
     if portada_bytes is not None:
         conn.execute(
-            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=?, Portada_nombre=?, tipo_espectaculo=? WHERE rowid=?',
+            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=?, Portada_nombre=? WHERE rowid=?',
             (
                 datos['nombre'],
                 datos['proveedor'],
@@ -336,13 +339,12 @@ def edit_pelicula(request):
                 programacion_emision_texto,
                 portada_bytes,
                 portada_nombre,
-                'película',
-                pelicula_id,
+                tipo_id,
             ),
         )
     else:
         conn.execute(
-            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, tipo_espectaculo=?, Portada=CASE WHEN Portada = "" THEN NULL ELSE Portada END WHERE rowid=?',
+            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=CASE WHEN Portada = "" THEN NULL ELSE Portada END WHERE rowid=?',
             (
                 datos['nombre'],
                 datos['proveedor'],
@@ -354,8 +356,7 @@ def edit_pelicula(request):
                 fecha_estreno,
                 fechas_emision_texto,
                 programacion_emision_texto,
-                'película',
-                pelicula_id,
+                tipo_id,
             ),
         )
     conn.commit()
@@ -369,11 +370,8 @@ def delete_pelicula(request):
     if request.method != 'POST':
         return redirect('admin_panel')
 
-    pelicula_id = int(request.POST['id'])
-    conn = get_db_connection()
-    conn.execute('DELETE FROM PELICULAS WHERE rowid=?', (pelicula_id,))
-    conn.commit()
-    conn.close()
+    global_id = int(request.POST['id'])
+    eliminar_espectaculo_por_id(global_id)
     return redirect('admin_panel')
 
 
@@ -404,25 +402,25 @@ def add_show(request):
     ensure_fechas_emision_schema()
     ensure_espectaculos_schema()
     conn = get_db_connection()
-    conn.execute(
-        'INSERT INTO PELICULAS (Nombre, Proveedor, Generos, Clasificacion, Duracion, Descripcion, Calificacion, Fecha_estreno, Fechas_emision, Programacion_emision, Portada, Portada_nombre, tipo_espectaculo, artista_show) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    cursor = conn.cursor()
+    cursor.execute(
+        'INSERT INTO SHOWS (Nombre, artista_show, tema, Clasificacion, Duracion, Descripcion, Fecha_estreno, Fechas_emision, Programacion_emision, Portada, Portada_nombre) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         (
             datos['nombre'],
-            0,
+            datos.get('artista_show', ''),
             datos['tema'],
             datos['clasificacion'],
             datos['duracion'],
             datos['descripcion'],
-            0.0,
             fecha_estreno,
             fechas_emision_texto,
             programacion_emision_texto,
             portada_bytes,
             portada_nombre,
-            'show',
-            datos.get('artista_show', ''),
         ),
     )
+    tipo_id = cursor.lastrowid
+    cursor.execute("INSERT INTO Tipos_de_espectaculos (tipo, tipo_id) VALUES ('show', ?)", (tipo_id,))
     conn.commit()
     conn.close()
     return redirect('admin_panel')
@@ -440,6 +438,7 @@ def edit_show(request):
 
     datos = form.cleaned_data
     show_id = datos['id']
+    _, tipo_id = obtener_tipo_e_id(show_id)
     programacion_emision = datos.get('programacion_emision') or {}
     fechas_emision = fechas_desde_programacion_emision(programacion_emision)
     fecha_estreno = fechas_emision[0] if fechas_emision else None
@@ -459,8 +458,8 @@ def edit_show(request):
     conn = get_db_connection()
     if not programacion_emision:
         fila_actual = conn.execute(
-            'SELECT Fecha_estreno, Fechas_emision, Programacion_emision FROM PELICULAS WHERE rowid=?',
-            (show_id,),
+            'SELECT Fecha_estreno, Fechas_emision, Programacion_emision FROM SHOWS WHERE rowid=?',
+            (tipo_id,),
         ).fetchone()
         if fila_actual:
             fecha_estreno = fila_actual['Fecha_estreno']
@@ -469,67 +468,57 @@ def edit_show(request):
 
     if eliminar_portada:
         conn.execute(
-            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, tipo_espectaculo=?, artista_show=? WHERE rowid=?',
+            'UPDATE SHOWS SET Nombre=?, artista_show=?, tema=?, Clasificacion=?, Duracion=?, Descripcion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=? WHERE rowid=?',
             (
                 datos['nombre'],
-                0,
+                datos.get('artista_show', ''),
                 datos['tema'],
                 datos['clasificacion'],
                 datos['duracion'],
                 datos['descripcion'],
-                0.0,
                 fecha_estreno,
                 fechas_emision_texto,
                 programacion_emision_texto,
-                'show',
-                datos.get('artista_show', ''),
-                show_id,
+                tipo_id,
             ),
         )
         conn.commit()
         conn.close()
-
         eliminar_portada_por_rowid(show_id)
         return redirect('admin_panel')
 
     if portada_bytes is not None:
         conn.execute(
-            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=?, Portada_nombre=?, tipo_espectaculo=?, artista_show=? WHERE rowid=?',
+            'UPDATE SHOWS SET Nombre=?, artista_show=?, tema=?, Clasificacion=?, Duracion=?, Descripcion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=?, Portada_nombre=? WHERE rowid=?',
             (
                 datos['nombre'],
-                0,
+                datos.get('artista_show', ''),
                 datos['tema'],
                 datos['clasificacion'],
                 datos['duracion'],
                 datos['descripcion'],
-                0.0,
                 fecha_estreno,
                 fechas_emision_texto,
                 programacion_emision_texto,
                 portada_bytes,
                 portada_nombre,
-                'show',
-                datos.get('artista_show', ''),
-                show_id,
+                tipo_id,
             ),
         )
     else:
         conn.execute(
-            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, tipo_espectaculo=?, artista_show=?, Portada=CASE WHEN Portada = "" THEN NULL ELSE Portada END WHERE rowid=?',
+            'UPDATE SHOWS SET Nombre=?, artista_show=?, tema=?, Clasificacion=?, Duracion=?, Descripcion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=CASE WHEN Portada = "" THEN NULL ELSE Portada END WHERE rowid=?',
             (
                 datos['nombre'],
-                0,
+                datos.get('artista_show', ''),
                 datos['tema'],
                 datos['clasificacion'],
                 datos['duracion'],
                 datos['descripcion'],
-                0.0,
                 fecha_estreno,
                 fechas_emision_texto,
                 programacion_emision_texto,
-                'show',
-                datos.get('artista_show', ''),
-                show_id,
+                tipo_id,
             ),
         )
 
@@ -565,26 +554,26 @@ def add_teatro(request):
     ensure_fechas_emision_schema()
     ensure_espectaculos_schema()
     conn = get_db_connection()
-    conn.execute(
-        'INSERT INTO PELICULAS (Nombre, Proveedor, Generos, Clasificacion, Duracion, Descripcion, Calificacion, Fecha_estreno, Fechas_emision, Programacion_emision, Portada, Portada_nombre, tipo_espectaculo, artista_show, ambientacion_teatro) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    cursor = conn.cursor()
+    cursor.execute(
+        'INSERT INTO TEATRO (Nombre, artista_show, tema, ambientacion_teatro, Clasificacion, Duracion, Descripcion, Fecha_estreno, Fechas_emision, Programacion_emision, Portada, Portada_nombre) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         (
             datos['nombre'],
-            0,
+            datos.get('artista_show', ''),
             datos['tema'],
+            datos.get('ambientacion', ''),
             datos['clasificacion'],
             datos['duracion'],
             datos['descripcion'],
-            0.0,
             fecha_estreno,
             fechas_emision_texto,
             programacion_emision_texto,
             portada_bytes,
             portada_nombre,
-            'teatro',
-            datos.get('artista_show', ''),
-            datos.get('ambientacion', ''),
         ),
     )
+    tipo_id = cursor.lastrowid
+    cursor.execute("INSERT INTO Tipos_de_espectaculos (tipo, tipo_id) VALUES ('teatro', ?)", (tipo_id,))
     conn.commit()
     conn.close()
     return redirect('admin_panel')
@@ -602,6 +591,7 @@ def edit_teatro(request):
 
     datos = form.cleaned_data
     teatro_id = datos['id']
+    _, tipo_id = obtener_tipo_e_id(teatro_id)
     programacion_emision = datos.get('programacion_emision') or {}
     fechas_emision = fechas_desde_programacion_emision(programacion_emision)
     fecha_estreno = fechas_emision[0] if fechas_emision else None
@@ -621,8 +611,8 @@ def edit_teatro(request):
     conn = get_db_connection()
     if not programacion_emision:
         fila_actual = conn.execute(
-            'SELECT Fecha_estreno, Fechas_emision, Programacion_emision FROM PELICULAS WHERE rowid=?',
-            (teatro_id,),
+            'SELECT Fecha_estreno, Fechas_emision, Programacion_emision FROM TEATRO WHERE rowid=?',
+            (tipo_id,),
         ).fetchone()
         if fila_actual:
             fecha_estreno = fila_actual['Fecha_estreno']
@@ -631,70 +621,60 @@ def edit_teatro(request):
 
     if eliminar_portada:
         conn.execute(
-            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, tipo_espectaculo=?, artista_show=?, ambientacion_teatro=? WHERE rowid=?',
+            'UPDATE TEATRO SET Nombre=?, artista_show=?, tema=?, ambientacion_teatro=?, Clasificacion=?, Duracion=?, Descripcion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=? WHERE rowid=?',
             (
                 datos['nombre'],
-                0,
+                datos.get('artista_show', ''),
                 datos['tema'],
+                datos.get('ambientacion', ''),
                 datos['clasificacion'],
                 datos['duracion'],
                 datos['descripcion'],
-                0.0,
                 fecha_estreno,
                 fechas_emision_texto,
                 programacion_emision_texto,
-                'teatro',
-                datos.get('artista_show', ''),
-                datos.get('ambientacion', ''),
-                teatro_id,
+                tipo_id,
             ),
         )
         conn.commit()
         conn.close()
-
         eliminar_portada_por_rowid(teatro_id)
         return redirect('admin_panel')
 
     if portada_bytes is not None:
         conn.execute(
-            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=?, Portada_nombre=?, tipo_espectaculo=?, artista_show=?, ambientacion_teatro=? WHERE rowid=?',
+            'UPDATE TEATRO SET Nombre=?, artista_show=?, tema=?, ambientacion_teatro=?, Clasificacion=?, Duracion=?, Descripcion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=?, Portada_nombre=? WHERE rowid=?',
             (
                 datos['nombre'],
-                0,
+                datos.get('artista_show', ''),
                 datos['tema'],
+                datos.get('ambientacion', ''),
                 datos['clasificacion'],
                 datos['duracion'],
                 datos['descripcion'],
-                0.0,
                 fecha_estreno,
                 fechas_emision_texto,
                 programacion_emision_texto,
                 portada_bytes,
                 portada_nombre,
-                'teatro',
-                datos.get('artista_show', ''),
-                datos.get('ambientacion', ''),
-                teatro_id,
+                tipo_id,
             ),
         )
     else:
         conn.execute(
-            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, tipo_espectaculo=?, artista_show=?, ambientacion_teatro=?, Portada=CASE WHEN Portada = "" THEN NULL ELSE Portada END WHERE rowid=?',
+            'UPDATE TEATRO SET Nombre=?, artista_show=?, tema=?, ambientacion_teatro=?, Clasificacion=?, Duracion=?, Descripcion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=CASE WHEN Portada = "" THEN NULL ELSE Portada END WHERE rowid=?',
             (
                 datos['nombre'],
-                0,
+                datos.get('artista_show', ''),
                 datos['tema'],
+                datos.get('ambientacion', ''),
                 datos['clasificacion'],
                 datos['duracion'],
                 datos['descripcion'],
-                0.0,
                 fecha_estreno,
                 fechas_emision_texto,
                 programacion_emision_texto,
-                'teatro',
-                datos.get('artista_show', ''),
-                datos.get('ambientacion', ''),
-                teatro_id,
+                tipo_id,
             ),
         )
 
@@ -730,27 +710,24 @@ def add_exposicion(request):
     ensure_fechas_emision_schema()
     ensure_espectaculos_schema()
     conn = get_db_connection()
-    conn.execute(
-        'INSERT INTO PELICULAS (Nombre, Proveedor, Generos, Clasificacion, Duracion, Descripcion, Calificacion, Fecha_estreno, Fechas_emision, Programacion_emision, Portada, Portada_nombre, tipo_espectaculo, artista_show, tema_exposicion, responsable) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    cursor = conn.cursor()
+    cursor.execute(
+        'INSERT INTO EXPOSICIONES (Nombre, tema, artista_show, Duracion, Descripcion, Fecha_estreno, Fechas_emision, Programacion_emision, Portada, Portada_nombre) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         (
             datos['nombre'],
-            0,
-            datos['tema'],
-            'G',
+            datos.get('tema', ''),
+            datos.get('artista_show', ''),
             datos['duracion'],
             datos['descripcion'],
-            0.0,
             fecha_estreno,
             fechas_emision_texto,
             programacion_emision_texto,
             portada_bytes,
             portada_nombre,
-            'exposicion',
-            datos.get('artista_show', ''),
-            datos.get('tema', ''),
-            datos.get('artista_show', ''),
         ),
     )
+    tipo_id = cursor.lastrowid
+    cursor.execute("INSERT INTO Tipos_de_espectaculos (tipo, tipo_id) VALUES ('exposicion', ?)", (tipo_id,))
     conn.commit()
     conn.close()
     return redirect('admin_panel')
@@ -768,6 +745,7 @@ def edit_exposicion(request):
 
     datos = form.cleaned_data
     exposicion_id = datos['id']
+    _, tipo_id = obtener_tipo_e_id(exposicion_id)
     programacion_emision = datos.get('programacion_emision') or {}
     fechas_emision = fechas_desde_programacion_emision(programacion_emision)
     fecha_estreno = fechas_emision[0] if fechas_emision else None
@@ -787,8 +765,8 @@ def edit_exposicion(request):
     conn = get_db_connection()
     if not programacion_emision:
         fila_actual = conn.execute(
-            'SELECT Fecha_estreno, Fechas_emision, Programacion_emision FROM PELICULAS WHERE rowid=?',
-            (exposicion_id,),
+            'SELECT Fecha_estreno, Fechas_emision, Programacion_emision FROM EXPOSICIONES WHERE rowid=?',
+            (tipo_id,),
         ).fetchone()
         if fila_actual:
             fecha_estreno = fila_actual['Fecha_estreno']
@@ -797,73 +775,54 @@ def edit_exposicion(request):
 
     if eliminar_portada:
         conn.execute(
-            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, tipo_espectaculo=?, artista_show=?, tema_exposicion=?, responsable=? WHERE rowid=?',
+            'UPDATE EXPOSICIONES SET Nombre=?, tema=?, artista_show=?, Duracion=?, Descripcion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=? WHERE rowid=?',
             (
                 datos['nombre'],
-                0,
-                datos['tema'],
-                'G',
+                datos.get('tema', ''),
+                datos.get('artista_show', ''),
                 datos['duracion'],
                 datos['descripcion'],
-                0.0,
                 fecha_estreno,
                 fechas_emision_texto,
                 programacion_emision_texto,
-                'exposicion',
-                datos.get('artista_show', ''),
-                datos.get('tema', ''),
-                datos.get('artista_show', ''),
-                exposicion_id,
+                tipo_id,
             ),
         )
         conn.commit()
         conn.close()
-
         eliminar_portada_por_rowid(exposicion_id)
         return redirect('admin_panel')
 
     if portada_bytes is not None:
         conn.execute(
-            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=?, Portada_nombre=?, tipo_espectaculo=?, artista_show=?, tema_exposicion=?, responsable=? WHERE rowid=?',
+            'UPDATE EXPOSICIONES SET Nombre=?, tema=?, artista_show=?, Duracion=?, Descripcion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=?, Portada_nombre=? WHERE rowid=?',
             (
                 datos['nombre'],
-                0,
-                datos['tema'],
-                'G',
+                datos.get('tema', ''),
+                datos.get('artista_show', ''),
                 datos['duracion'],
                 datos['descripcion'],
-                0.0,
                 fecha_estreno,
                 fechas_emision_texto,
                 programacion_emision_texto,
                 portada_bytes,
                 portada_nombre,
-                'exposicion',
-                datos.get('artista_show', ''),
-                datos.get('tema', ''),
-                datos.get('artista_show', ''),
-                exposicion_id,
+                tipo_id,
             ),
         )
     else:
         conn.execute(
-            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, tipo_espectaculo=?, artista_show=?, tema_exposicion=?, responsable=?, Portada=CASE WHEN Portada = "" THEN NULL ELSE Portada END WHERE rowid=?',
+            'UPDATE EXPOSICIONES SET Nombre=?, tema=?, artista_show=?, Duracion=?, Descripcion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=CASE WHEN Portada = "" THEN NULL ELSE Portada END WHERE rowid=?',
             (
                 datos['nombre'],
-                0,
-                datos['tema'],
-                'G',
+                datos.get('tema', ''),
+                datos.get('artista_show', ''),
                 datos['duracion'],
                 datos['descripcion'],
-                0.0,
                 fecha_estreno,
                 fechas_emision_texto,
                 programacion_emision_texto,
-                'exposicion',
-                datos.get('artista_show', ''),
-                datos.get('tema', ''),
-                datos.get('artista_show', ''),
-                exposicion_id,
+                tipo_id,
             ),
         )
 
