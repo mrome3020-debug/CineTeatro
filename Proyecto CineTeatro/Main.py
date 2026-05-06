@@ -89,10 +89,10 @@ def _normalizar_tipo_espectaculo(valor_tipo):
 	return 'pelicula'
 
 
-def _mapear_peliculas_para_vistas(limit=40):
+def _mapear_peliculas_para_vistas(limit=40, rowid=None):
 	horarios_disponibles = obtener_horarios_disponibles()
 	horarios_por_nombre = {horario.nombre: horario for horario in horarios_disponibles}
-	peliculas_raw = obtener_peliculas_para_main(limit=limit)
+	peliculas_raw = obtener_peliculas_para_main(limit=limit, rowid=rowid)
 	peliculas = []
 
 	for pelicula in peliculas_raw:
@@ -150,8 +150,8 @@ def main_view(request):
 
 
 def detalle_espectaculo_view(request, espectaculo_id):
-	peliculas, _ = _mapear_peliculas_para_vistas(limit=500)
-	espectaculo = next((pelicula for pelicula in peliculas if pelicula['id'] == espectaculo_id), None)
+	peliculas, _ = _mapear_peliculas_para_vistas(rowid=espectaculo_id)
+	espectaculo = peliculas[0] if peliculas else None
 	if espectaculo is None:
 		raise Http404('Espectaculo no encontrado.')
 

@@ -1,6 +1,12 @@
 from datetime import datetime, timedelta
 import calendar
 
+_NOMBRES_MESES = {
+    1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
+    5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
+    9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
+}
+
 # Definiendo el calendario
 class Fecha:
     def __init__(self):
@@ -29,12 +35,7 @@ class Fecha:
     
     def obtener_nombre_mes(self, mes):
         """Retorna el nombre del mes"""
-        meses = {
-            1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
-            5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
-            9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
-        }
-        return meses.get(mes, "")
+        return _NOMBRES_MESES.get(mes, "")
     
     def mostrar_calendario(self, mes, año):
         """Muestra el calendario del mes con días seleccionables y no seleccionables"""

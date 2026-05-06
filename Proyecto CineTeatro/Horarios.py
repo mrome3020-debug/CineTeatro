@@ -21,6 +21,8 @@ horario_1 = HORARIO_1
 horario_2 = HORARIO_2
 horario_3 = HORARIO_3
 
+_HORARIOS_POR_NOMBRE = {h.nombre: h for h in (HORARIO_1, HORARIO_2, HORARIO_3)}
+
 
 def obtener_horarios_disponibles():
     """Devuelve los horarios agrupados solo cuando la vista necesita mostrarlos juntos."""
@@ -28,8 +30,8 @@ def obtener_horarios_disponibles():
 
 
 def obtener_horarios_por_nombre():
-    return {horario.nombre: horario for horario in obtener_horarios_disponibles()}
+    return _HORARIOS_POR_NOMBRE
 
 
 def obtener_horario(nombre):
-    return obtener_horarios_por_nombre().get(nombre)
+    return _HORARIOS_POR_NOMBRE.get(nombre)
