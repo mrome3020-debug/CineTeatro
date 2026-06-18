@@ -19,6 +19,8 @@ from DB import (
     obtener_rango_fechas_emision,
     obtener_tipo_e_id,
     obtener_todos_espectaculos_admin,
+    obtener_visitas_historicas,
+    obtener_estadisticas_visitas,
     _TABLA_POR_TIPO,
     PeliculaCreateForm,
     PeliculaEditForm,
@@ -114,7 +116,12 @@ def _obtener_proveedores_contexto(peliculas):
         if valor:
             proveedores.add(valor)
 
-    return sorted(proveedores, key=lambda item: int(item) if item.isdigit() else item)
+    def clave_proveedor(item):
+        if item.isdigit():
+            return (0, int(item))
+        return (1, item.lower())
+
+    return sorted(proveedores, key=clave_proveedor)
 
 
 def _obtener_generos_contexto(peliculas):
@@ -145,6 +152,15 @@ def admin(request):
     espectaculos = obtener_todos_espectaculos_admin()
 
     peliculas_contexto = [_normalizar_pelicula(esp) for esp in espectaculos]
+    visitas = obtener_visitas_historicas()
+    estadisticas = obtener_estadisticas_visitas()
+    visitas_count = estadisticas['ips_unicas']
+    visitas_por_dia = estadisticas['visitas_por_dia']
+
+    max_visitas_por_dia = max((dia['cantidad'] for dia in visitas_por_dia), default=1)
+    for dia in visitas_por_dia:
+        dia['bar_width'] = max(int(dia['cantidad'] * 100 / max_visitas_por_dia), 10)
+
     return render(
         request,
         'admin_peliculas.html',
@@ -155,6 +171,9 @@ def admin(request):
             'proveedores': _obtener_proveedores_contexto(peliculas_contexto),
             'generos_disponibles': _obtener_generos_contexto(peliculas_contexto),
             'usuario': request.session['usuario'],
+            'visitas': visitas,
+            'visitas_count': visitas_count,
+            'visitas_por_dia': visitas_por_dia,
         },
     )
 
@@ -237,7 +256,7 @@ def add_pelicula(request):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
-        'INSERT INTO PELICULAS (Nombre, Proveedor, Generos, Clasificacion, Duracion, Descripcion, Calificacion, Fecha_estreno, Fechas_emision, Programacion_emision, Portada, Portada_nombre) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO PELICULAS (Nombre, Proveedor, Generos, Clasificacion, Duracion, Descripcion, Calificacion, Fecha_estreno, Fechas_emision, Programacion_emision, Portada, Portada_nombre, apto_discapacidad_cognitiva) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         (
             datos['nombre'],
             datos['proveedor'],
@@ -251,6 +270,7 @@ def add_pelicula(request):
             programacion_emision_texto,
             portada_bytes,
             portada_nombre,
+            1 if datos.get('apto_discapacidad_cognitiva') else 0,
         ),
     )
     tipo_id = cursor.lastrowid
@@ -302,7 +322,7 @@ def edit_pelicula(request):
 
     if eliminar_portada:
         conn.execute(
-            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=? WHERE rowid=?',
+            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, apto_discapacidad_cognitiva=? WHERE rowid=?',
             (
                 datos['nombre'],
                 datos['proveedor'],
@@ -314,6 +334,7 @@ def edit_pelicula(request):
                 fecha_estreno,
                 fechas_emision_texto,
                 programacion_emision_texto,
+                1 if datos.get('apto_discapacidad_cognitiva') else 0,
                 tipo_id,
             ),
         )
@@ -325,7 +346,7 @@ def edit_pelicula(request):
 
     if portada_bytes is not None:
         conn.execute(
-            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=?, Portada_nombre=? WHERE rowid=?',
+            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=?, Portada_nombre=?, apto_discapacidad_cognitiva=? WHERE rowid=?',
             (
                 datos['nombre'],
                 datos['proveedor'],
@@ -339,12 +360,13 @@ def edit_pelicula(request):
                 programacion_emision_texto,
                 portada_bytes,
                 portada_nombre,
+                1 if datos.get('apto_discapacidad_cognitiva') else 0,
                 tipo_id,
             ),
         )
     else:
         conn.execute(
-            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=CASE WHEN Portada = "" THEN NULL ELSE Portada END WHERE rowid=?',
+            'UPDATE PELICULAS SET Nombre=?, Proveedor=?, Generos=?, Clasificacion=?, Duracion=?, Descripcion=?, Calificacion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=CASE WHEN Portada = "" THEN NULL ELSE Portada END, apto_discapacidad_cognitiva=? WHERE rowid=?',
             (
                 datos['nombre'],
                 datos['proveedor'],
@@ -356,6 +378,7 @@ def edit_pelicula(request):
                 fecha_estreno,
                 fechas_emision_texto,
                 programacion_emision_texto,
+                1 if datos.get('apto_discapacidad_cognitiva') else 0,
                 tipo_id,
             ),
         )
@@ -404,7 +427,7 @@ def add_show(request):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
-        'INSERT INTO SHOWS (Nombre, artista_show, tema, Clasificacion, Duracion, Descripcion, Fecha_estreno, Fechas_emision, Programacion_emision, Portada, Portada_nombre) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO SHOWS (Nombre, artista_show, tema, Clasificacion, Duracion, Descripcion, Fecha_estreno, Fechas_emision, Programacion_emision, Portada, Portada_nombre, apto_discapacidad_cognitiva) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         (
             datos['nombre'],
             datos.get('artista_show', ''),
@@ -417,6 +440,7 @@ def add_show(request):
             programacion_emision_texto,
             portada_bytes,
             portada_nombre,
+            1 if datos.get('apto_discapacidad_cognitiva') else 0,
         ),
     )
     tipo_id = cursor.lastrowid
@@ -468,7 +492,7 @@ def edit_show(request):
 
     if eliminar_portada:
         conn.execute(
-            'UPDATE SHOWS SET Nombre=?, artista_show=?, tema=?, Clasificacion=?, Duracion=?, Descripcion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=? WHERE rowid=?',
+            'UPDATE SHOWS SET Nombre=?, artista_show=?, tema=?, Clasificacion=?, Duracion=?, Descripcion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, apto_discapacidad_cognitiva=? WHERE rowid=?',
             (
                 datos['nombre'],
                 datos.get('artista_show', ''),
@@ -479,6 +503,7 @@ def edit_show(request):
                 fecha_estreno,
                 fechas_emision_texto,
                 programacion_emision_texto,
+                1 if datos.get('apto_discapacidad_cognitiva') else 0,
                 tipo_id,
             ),
         )
@@ -489,7 +514,7 @@ def edit_show(request):
 
     if portada_bytes is not None:
         conn.execute(
-            'UPDATE SHOWS SET Nombre=?, artista_show=?, tema=?, Clasificacion=?, Duracion=?, Descripcion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=?, Portada_nombre=? WHERE rowid=?',
+            'UPDATE SHOWS SET Nombre=?, artista_show=?, tema=?, Clasificacion=?, Duracion=?, Descripcion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=?, Portada_nombre=?, apto_discapacidad_cognitiva=? WHERE rowid=?',
             (
                 datos['nombre'],
                 datos.get('artista_show', ''),
@@ -502,12 +527,13 @@ def edit_show(request):
                 programacion_emision_texto,
                 portada_bytes,
                 portada_nombre,
+                1 if datos.get('apto_discapacidad_cognitiva') else 0,
                 tipo_id,
             ),
         )
     else:
         conn.execute(
-            'UPDATE SHOWS SET Nombre=?, artista_show=?, tema=?, Clasificacion=?, Duracion=?, Descripcion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=CASE WHEN Portada = "" THEN NULL ELSE Portada END WHERE rowid=?',
+            'UPDATE SHOWS SET Nombre=?, artista_show=?, tema=?, Clasificacion=?, Duracion=?, Descripcion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=CASE WHEN Portada = "" THEN NULL ELSE Portada END, apto_discapacidad_cognitiva=? WHERE rowid=?',
             (
                 datos['nombre'],
                 datos.get('artista_show', ''),
@@ -518,6 +544,7 @@ def edit_show(request):
                 fecha_estreno,
                 fechas_emision_texto,
                 programacion_emision_texto,
+                1 if datos.get('apto_discapacidad_cognitiva') else 0,
                 tipo_id,
             ),
         )
@@ -556,7 +583,7 @@ def add_teatro(request):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
-        'INSERT INTO TEATRO (Nombre, artista_show, tema, ambientacion_teatro, Clasificacion, Duracion, Descripcion, Fecha_estreno, Fechas_emision, Programacion_emision, Portada, Portada_nombre) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO TEATRO (Nombre, artista_show, tema, ambientacion_teatro, Clasificacion, Duracion, Descripcion, Fecha_estreno, Fechas_emision, Programacion_emision, Portada, Portada_nombre, apto_discapacidad_cognitiva) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         (
             datos['nombre'],
             datos.get('artista_show', ''),
@@ -570,6 +597,7 @@ def add_teatro(request):
             programacion_emision_texto,
             portada_bytes,
             portada_nombre,
+            1 if datos.get('apto_discapacidad_cognitiva') else 0,
         ),
     )
     tipo_id = cursor.lastrowid
@@ -621,7 +649,7 @@ def edit_teatro(request):
 
     if eliminar_portada:
         conn.execute(
-            'UPDATE TEATRO SET Nombre=?, artista_show=?, tema=?, ambientacion_teatro=?, Clasificacion=?, Duracion=?, Descripcion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=? WHERE rowid=?',
+            'UPDATE TEATRO SET Nombre=?, artista_show=?, tema=?, ambientacion_teatro=?, Clasificacion=?, Duracion=?, Descripcion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, apto_discapacidad_cognitiva=? WHERE rowid=?',
             (
                 datos['nombre'],
                 datos.get('artista_show', ''),
@@ -633,6 +661,7 @@ def edit_teatro(request):
                 fecha_estreno,
                 fechas_emision_texto,
                 programacion_emision_texto,
+                1 if datos.get('apto_discapacidad_cognitiva') else 0,
                 tipo_id,
             ),
         )
@@ -643,7 +672,7 @@ def edit_teatro(request):
 
     if portada_bytes is not None:
         conn.execute(
-            'UPDATE TEATRO SET Nombre=?, artista_show=?, tema=?, ambientacion_teatro=?, Clasificacion=?, Duracion=?, Descripcion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=?, Portada_nombre=? WHERE rowid=?',
+            'UPDATE TEATRO SET Nombre=?, artista_show=?, tema=?, ambientacion_teatro=?, Clasificacion=?, Duracion=?, Descripcion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=?, Portada_nombre=?, apto_discapacidad_cognitiva=? WHERE rowid=?',
             (
                 datos['nombre'],
                 datos.get('artista_show', ''),
@@ -657,12 +686,13 @@ def edit_teatro(request):
                 programacion_emision_texto,
                 portada_bytes,
                 portada_nombre,
+                1 if datos.get('apto_discapacidad_cognitiva') else 0,
                 tipo_id,
             ),
         )
     else:
         conn.execute(
-            'UPDATE TEATRO SET Nombre=?, artista_show=?, tema=?, ambientacion_teatro=?, Clasificacion=?, Duracion=?, Descripcion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=CASE WHEN Portada = "" THEN NULL ELSE Portada END WHERE rowid=?',
+            'UPDATE TEATRO SET Nombre=?, artista_show=?, tema=?, ambientacion_teatro=?, Clasificacion=?, Duracion=?, Descripcion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=CASE WHEN Portada = "" THEN NULL ELSE Portada END, apto_discapacidad_cognitiva=? WHERE rowid=?',
             (
                 datos['nombre'],
                 datos.get('artista_show', ''),
@@ -674,6 +704,7 @@ def edit_teatro(request):
                 fecha_estreno,
                 fechas_emision_texto,
                 programacion_emision_texto,
+                1 if datos.get('apto_discapacidad_cognitiva') else 0,
                 tipo_id,
             ),
         )
@@ -712,7 +743,7 @@ def add_exposicion(request):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
-        'INSERT INTO EXPOSICIONES (Nombre, tema, artista_show, Duracion, Descripcion, Fecha_estreno, Fechas_emision, Programacion_emision, Portada, Portada_nombre) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO EXPOSICIONES (Nombre, tema, artista_show, Duracion, Descripcion, Fecha_estreno, Fechas_emision, Programacion_emision, Portada, Portada_nombre, apto_discapacidad_cognitiva) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         (
             datos['nombre'],
             datos.get('tema', ''),
@@ -724,6 +755,7 @@ def add_exposicion(request):
             programacion_emision_texto,
             portada_bytes,
             portada_nombre,
+            1 if datos.get('apto_discapacidad_cognitiva') else 0,
         ),
     )
     tipo_id = cursor.lastrowid
@@ -775,7 +807,7 @@ def edit_exposicion(request):
 
     if eliminar_portada:
         conn.execute(
-            'UPDATE EXPOSICIONES SET Nombre=?, tema=?, artista_show=?, Duracion=?, Descripcion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=? WHERE rowid=?',
+            'UPDATE EXPOSICIONES SET Nombre=?, tema=?, artista_show=?, Duracion=?, Descripcion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, apto_discapacidad_cognitiva=? WHERE rowid=?',
             (
                 datos['nombre'],
                 datos.get('tema', ''),
@@ -785,6 +817,7 @@ def edit_exposicion(request):
                 fecha_estreno,
                 fechas_emision_texto,
                 programacion_emision_texto,
+                1 if datos.get('apto_discapacidad_cognitiva') else 0,
                 tipo_id,
             ),
         )
@@ -795,7 +828,7 @@ def edit_exposicion(request):
 
     if portada_bytes is not None:
         conn.execute(
-            'UPDATE EXPOSICIONES SET Nombre=?, tema=?, artista_show=?, Duracion=?, Descripcion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=?, Portada_nombre=? WHERE rowid=?',
+            'UPDATE EXPOSICIONES SET Nombre=?, tema=?, artista_show=?, Duracion=?, Descripcion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=?, Portada_nombre=?, apto_discapacidad_cognitiva=? WHERE rowid=?',
             (
                 datos['nombre'],
                 datos.get('tema', ''),
@@ -807,12 +840,13 @@ def edit_exposicion(request):
                 programacion_emision_texto,
                 portada_bytes,
                 portada_nombre,
+                1 if datos.get('apto_discapacidad_cognitiva') else 0,
                 tipo_id,
             ),
         )
     else:
         conn.execute(
-            'UPDATE EXPOSICIONES SET Nombre=?, tema=?, artista_show=?, Duracion=?, Descripcion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=CASE WHEN Portada = "" THEN NULL ELSE Portada END WHERE rowid=?',
+            'UPDATE EXPOSICIONES SET Nombre=?, tema=?, artista_show=?, Duracion=?, Descripcion=?, Fecha_estreno=?, Fechas_emision=?, Programacion_emision=?, Portada=CASE WHEN Portada = "" THEN NULL ELSE Portada END, apto_discapacidad_cognitiva=? WHERE rowid=?',
             (
                 datos['nombre'],
                 datos.get('tema', ''),
@@ -822,6 +856,7 @@ def edit_exposicion(request):
                 fecha_estreno,
                 fechas_emision_texto,
                 programacion_emision_texto,
+                1 if datos.get('apto_discapacidad_cognitiva') else 0,
                 tipo_id,
             ),
         )
