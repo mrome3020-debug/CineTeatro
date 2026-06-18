@@ -2,6 +2,7 @@ import os
 import sys
 import base64
 
+from django.contrib.auth import authenticate
 from django.http import Http404, JsonResponse
 from django.shortcuts import redirect, render
 
@@ -16,7 +17,12 @@ from DB import (
 	obtener_peliculas_para_main,
 	obtener_rango_fechas_emision,
 	registrar_administrador,
+	registrar_visita,
+	obtener_ip_desde_request,
 )
+
+
+TEXTO_APTO_DISCAPACIDAD_COGNITIVA = 'Apto para personas con discapacidades cognitivas'
 
 
 def main():
@@ -124,6 +130,7 @@ def _mapear_peliculas_para_vistas(limit=40, rowid=None):
 				'fecha_hasta': formatear_fecha_corta(fecha_fin) if fecha_fin and fecha_fin != fecha_inicio else '',
 				'programacion_detalle': programacion_detalle,
 				'portada_src': construir_src_portada(pelicula['Portada'], pelicula['Portada_nombre']),
+				'apto_discapacidad_cognitiva': bool(pelicula['apto_discapacidad_cognitiva']) if 'apto_discapacidad_cognitiva' in pelicula.keys() else False,
 				'tipo_espectaculo': tipo_normalizado,
 				'artista_show': pelicula['artista_show'] or '',
 				'ambientacion_teatro': pelicula['ambientacion_teatro'] or '',
@@ -145,6 +152,7 @@ def main_view(request):
 			'horarios': horarios_disponibles,
 			'peliculas': peliculas,
 			'usuario_actual': usuario_actual,
+			'texto_apto_discapacidad_cognitiva': TEXTO_APTO_DISCAPACIDAD_COGNITIVA,
 		},
 	)
 
@@ -154,6 +162,9 @@ def detalle_espectaculo_view(request, espectaculo_id):
 	espectaculo = peliculas[0] if peliculas else None
 	if espectaculo is None:
 		raise Http404('Espectaculo no encontrado.')
+
+	ip_cliente = obtener_ip_desde_request(request)
+	registrar_visita(ip_cliente, espectaculo['nombre'])
 
 	return render(
 		request,
@@ -203,6 +214,13 @@ def validar_admin_web(request):
 			request.session['usuario'] = admin['nombre']
 			request.session['rol'] = 'admin'
 			return redirect('admin_panel')
+
+		django_admin = authenticate(request, username=usuario, password=contrasena)
+		if django_admin is not None and getattr(django_admin, 'is_staff', False):
+			request.session['usuario'] = django_admin.get_full_name() or django_admin.username
+			request.session['rol'] = 'admin'
+			return redirect('admin_panel')
+
 		return _render_login(
 			request,
 			error='Credenciales de Administrador incorrectas.',

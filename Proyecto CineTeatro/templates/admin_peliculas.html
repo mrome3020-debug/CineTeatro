@@ -30,6 +30,122 @@
             color: #0f2d43;
         }
 
+        .admin-visitas-global {
+            width: 100%;
+            margin: 0 0 26px;
+            padding: 18px;
+            border-radius: 18px;
+            border: 1px solid #bfd9ea;
+            background: rgba(255, 255, 255, 0.94);
+            box-shadow: 0 14px 34px rgba(24, 74, 106, 0.14);
+            backdrop-filter: blur(4px);
+        }
+
+        .admin-visitas-chart-title {
+            margin: 0 0 14px;
+            font-size: 16px;
+            color: #0f2d43;
+        }
+            border-radius: 18px;
+            border: 1px solid #bfd9ea;
+            background: rgba(255, 255, 255, 0.94);
+            box-shadow: 0 14px 34px rgba(24, 74, 106, 0.14);
+            backdrop-filter: blur(4px);
+        }
+
+        .admin-visitas-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .admin-visitas-header h2 {
+            margin: 0;
+            font-size: 18px;
+            color: #0f2d43;
+        }
+
+        .admin-visitas-count {
+            display: inline-flex;
+            min-width: 64px;
+            justify-content: center;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: #0f2d43;
+            color: #fff;
+            font-weight: 700;
+        }
+
+        .admin-visitas-panel {
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid #c7dfef;
+            background: #f9fcff;
+        }
+
+        .admin-visitas-panel summary {
+            cursor: pointer;
+            padding: 14px 16px;
+            font-weight: 700;
+            color: #0f2d43;
+            background: #eef8ff;
+        }
+
+        .admin-visitas-summary {
+            padding: 18px 16px 16px;
+        }
+
+        .visitas-graph-wrapper {
+            width: 100%;
+            overflow-x: auto;
+            margin-bottom: 16px;
+        }
+
+        .visitas-graph {
+            width: 100%;
+            min-height: 260px;
+            background: linear-gradient(180deg, #f7fbff 0%, #eef7fc 100%);
+            border-radius: 18px;
+            display: block;
+            box-shadow: inset 0 1px 2px rgba(15, 45, 67, 0.08);
+        }
+
+        .visitas-graph svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .visitas-graph-labels {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+            gap: 10px;
+            margin-top: 16px;
+            font-size: 0.88rem;
+            color: #0f2d43;
+        }
+
+        .visitas-graph-label {
+            text-align: center;
+            padding: 10px 8px;
+            background: #ffffff;
+            border-radius: 12px;
+            border: 1px solid rgba(15, 45, 67, 0.08);
+        }
+
+        .visitas-graph-label strong {
+            display: block;
+            margin-top: 4px;
+            font-weight: 700;
+        }
+
+        .visitas-empty {
+            margin: 0;
+            color: #335168;
+        }
+
         .primary-action-button {
             width: 100%;
             margin: 0;
@@ -917,6 +1033,7 @@
                     data-id="{{ pelicula.rowid }}"
                     data-nombre="{{ pelicula.Nombre }}"
                     data-tipo="{{ pelicula.tipo_espectaculo|default:'película' }}"
+                    data-apto-discapacidad-cognitiva="{% if pelicula.apto_discapacidad_cognitiva %}1{% else %}0{% endif %}"
                     data-proveedor="{{ pelicula.Proveedor }}"
                     data-generos="{{ pelicula.Generos }}"
                     data-clasificacion="{{ pelicula.Clasificacion }}"
@@ -971,6 +1088,28 @@
                 {% endfor %}
             </div>
         </section>
+
+        <div class="admin-visitas-global">
+            <div class="admin-visitas-header">
+                <h2>Registro de visitas</h2>
+                <span class="admin-visitas-count">{{ visitas_count }}</span>
+            </div>
+            <p class="admin-visitas-chart-title">Progreso histórico de IPs por día</p>
+            <details class="admin-visitas-panel">
+                <summary>Ver historial por día</summary>
+                <div class="admin-visitas-summary">
+                    {% if visitas_por_dia %}
+                    <div class="visitas-graph-wrapper">
+                        <div id="visitas-data" hidden>{% for dia in visitas_por_dia %}{{ dia.fecha }}|{{ dia.cantidad }}{% if not forloop.last %};{% endif %}{% endfor %}</div>
+                        <svg id="visitas-graph-svg" viewBox="0 0 600 260" preserveAspectRatio="none" class="visitas-graph"></svg>
+                    </div>
+                    <div class="visitas-graph-labels" id="visitas-graph-labels"></div>
+                    {% else %}
+                    <p class="visitas-empty">No hay registros de visitas aún.</p>
+                    {% endif %}
+                </div>
+            </details>
+        </div>
     </div>
 
     <div class="section" id="add-section">
@@ -984,12 +1123,12 @@
             </div>
             <div class="form-group" id="add-proveedor-group">
                 <label for="add-proveedor">Proveedor:</label>
-                <select id="add-proveedor" name="proveedor" required>
-                    <option value="">Seleccione un proveedor</option>
+                <input type="text" id="add-proveedor" name="proveedor" list="add-proveedores-list" autocomplete="off" required>
+                <datalist id="add-proveedores-list">
                     {% for proveedor in proveedores %}
-                    <option value="{{ proveedor }}">{{ proveedor }}</option>
+                    <option value="{{ proveedor }}"></option>
                     {% endfor %}
-                </select>
+                </datalist>
             </div>
             <div class="form-group" id="add-generos-group">
                 <label for="add-generos">Géneros:</label>
@@ -1050,7 +1189,7 @@
             </div>
             <div class="form-group" id="add-calificacion-group">
                 <label for="add-calificacion">Calificación:</label>
-                <input type="text" id="add-calificacion" name="calificacion" inputmode="decimal" pattern="^(10(\.0)?|[0-9](\.[0-9])?)$" title="Ingresa un número entre 0.0 y 10.0 con un solo decimal" required>
+                <input type="text" id="add-calificacion" name="calificacion" inputmode="decimal" pattern="^(10(\.0?)?|[0-9](\.[0-9]?)?)$" title="Ingresa un número entre 0.0 y 10.0 con un solo decimal" required>
             </div>
             <div class="form-group" id="add-estreno-group">
                 <label>Fecha de Estreno:</label>
@@ -1085,6 +1224,12 @@
                 <label for="add-portada">Portada (archivo de imagen):</label>
                 <input type="file" id="add-portada" name="portada" accept=".png,.jpg,.jpeg,.gif,.webp,image/*">
             </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="add-apto-discapacidad-cognitiva" name="apto_discapacidad_cognitiva">
+                    Espectáculo apto para Personas con discapacidad cognitiva
+                </label>
+            </div>
             <div class="buttons">
                 <button type="submit" class="save">Guardar</button>
                 <button type="button" class="cancel" onclick="hideSection('add')">Cancelar</button>
@@ -1104,12 +1249,12 @@
             </div>
             <div class="form-group" id="edit-proveedor-group">
                 <label for="edit-proveedor">Proveedor:</label>
-                <select id="edit-proveedor" name="proveedor" required>
-                    <option value="">Seleccione un proveedor</option>
+                <input type="text" id="edit-proveedor" name="proveedor" list="edit-proveedores-list" autocomplete="off" required>
+                <datalist id="edit-proveedores-list">
                     {% for proveedor in proveedores %}
-                    <option value="{{ proveedor }}">{{ proveedor }}</option>
+                    <option value="{{ proveedor }}"></option>
                     {% endfor %}
-                </select>
+                </datalist>
             </div>
             <div class="form-group" id="edit-generos-group">
                 <label for="edit-generos">Géneros:</label>
@@ -1170,7 +1315,7 @@
             </div>
             <div class="form-group" id="edit-calificacion-group">
                 <label for="edit-calificacion">Calificación:</label>
-                <input type="text" id="edit-calificacion" name="calificacion" inputmode="decimal" pattern="^(10(\.0)?|[0-9](\.[0-9])?)$" title="Ingresa un número entre 0.0 y 10.0 con un solo decimal" required>
+                <input type="text" id="edit-calificacion" name="calificacion" inputmode="decimal" pattern="^(10(\.0?)?|[0-9](\.[0-9]?)?)$" title="Ingresa un número entre 0.0 y 10.0 con un solo decimal" required>
             </div>
             <div class="form-group" id="edit-estreno-group">
                 <label>Fecha de Estreno:</label>
@@ -1204,6 +1349,12 @@
             <div class="form-group">
                 <label for="edit-portada">Portada (archivo de imagen):</label>
                 <input type="file" id="edit-portada" name="portada" accept=".png,.jpg,.jpeg,.gif,.webp,image/*">
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="edit-apto-discapacidad-cognitiva" name="apto_discapacidad_cognitiva">
+                    Espectáculo apto para Personas con discapacidad cognitiva
+                </label>
             </div>
             <div class="form-group">
                 <label>
@@ -1633,6 +1784,79 @@
             }
             return `${horario.nombre} (${horario.inicio} - ${horario.fin})`;
         }
+
+        function renderVisitasChart() {
+            const dataNode = document.getElementById('visitas-data');
+            if (!dataNode) {
+                return;
+            }
+            const raw = dataNode.textContent.trim();
+            if (!raw) {
+                return;
+            }
+            const items = raw.split(';').map((item) => {
+                const [fecha, cantidad] = item.split('|');
+                return { fecha: fecha || '', cantidad: Number(cantidad) || 0 };
+            }).filter((item) => item.fecha);
+
+            const svg = document.getElementById('visitas-graph-svg');
+            const labels = document.getElementById('visitas-graph-labels');
+            if (!svg || !labels || !items.length) {
+                return;
+            }
+
+            const WIDTH = 600;
+            const HEIGHT = 260;
+            const PADDING = 42;
+            const maxValue = Math.max(...items.map((item) => item.cantidad), 1);
+            const count = items.length;
+            const step = count > 1 ? (WIDTH - PADDING * 2) / (count - 1) : 0;
+            const points = items.map((item, index) => {
+                const x = PADDING + (count === 1 ? (WIDTH - 2 * PADDING) / 2 : index * step);
+                const y = HEIGHT - PADDING - (item.cantidad / maxValue) * (HEIGHT - 2 * PADDING);
+                return { x, y, ...item };
+            });
+
+            const gridLines = [0, 0.25, 0.5, 0.75, 1].map((fraction) => {
+                const y = PADDING + (HEIGHT - 2 * PADDING) * fraction;
+                return `<line x1="${PADDING}" y1="${y}" x2="${WIDTH - PADDING}" y2="${y}" stroke="rgba(15,45,67,0.10)" stroke-width="1" />`;
+            }).join('');
+
+            const path = points.map((point) => `${point.x},${point.y}`).join(' ');
+            const areaPath = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ') + ` L ${points[count - 1].x} ${HEIGHT - PADDING} L ${points[0].x} ${HEIGHT - PADDING} Z`;
+            const rangeLabels = [maxValue, Math.ceil(maxValue * 0.75), Math.ceil(maxValue * 0.5), Math.ceil(maxValue * 0.25), 0]
+                .map((val, idx) => {
+                    const y = PADDING + (HEIGHT - 2 * PADDING) * idx * 0.25;
+                    return `<text x="${PADDING - 10}" y="${y}" text-anchor="end" dominant-baseline="middle" fill="#335168" font-size="11">${val}</text>`;
+                }).join('');
+
+            const circles = points.map((point) =>
+                `<circle cx="${point.x}" cy="${point.y}" r="5" fill="#ffffff" stroke="#2e7cad" stroke-width="3" />`
+            ).join('');
+
+            svg.innerHTML = `
+                <defs>
+                    <linearGradient id="visitas-gradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stop-color="#2e7cad" stop-opacity="0.25" />
+                        <stop offset="100%" stop-color="#2e7cad" stop-opacity="0" />
+                    </linearGradient>
+                </defs>
+                ${gridLines}
+                <polyline points="${path}" fill="none" stroke="#2e7cad" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="${areaPath}" fill="url(#visitas-gradient)" />
+                ${circles}
+                ${rangeLabels}
+            `;
+
+            labels.innerHTML = items.map((item) => `
+                <div class="visitas-graph-label">
+                    <div>${item.fecha}</div>
+                    <strong>${item.cantidad}</strong>
+                </div>
+            `).join('');
+        }
+
+        document.addEventListener('DOMContentLoaded', renderVisitasChart);
 
         function obtenerClaveBorrador(prefix) {
             const estado = estadoProgramacion[prefix];
@@ -2088,31 +2312,31 @@
         }
 
         function asegurarProveedorDisponible(prefix, proveedor) {
-            const select = document.getElementById(`${prefix}-proveedor`);
-            if (!proveedor) {
+            const input = document.getElementById(`${prefix}-proveedor`);
+            const datalist = document.getElementById(`${prefix}-proveedores-list`);
+            if (!proveedor || !input || !datalist) {
                 return;
             }
 
-            const existe = Array.from(select.options).some((option) => option.value === proveedor);
-            if (existe) {
-                return;
+            const existe = Array.from(datalist.options).some((option) => option.value === proveedor);
+            if (!existe) {
+                const opcion = document.createElement('option');
+                opcion.value = proveedor;
+                datalist.appendChild(opcion);
             }
-
-            const opcion = document.createElement('option');
-            opcion.value = proveedor;
-            opcion.textContent = proveedor;
-            select.appendChild(opcion);
+            input.value = proveedor;
         }
 
         function normalizarCalificacionInput(value) {
             const limpio = String(value || '').replace(/[^\d.]/g, '');
             const partes = limpio.split('.');
-            if (partes.length <= 1) {
-                return limpio;
+            const entero = partes[0] || '';
+            if (partes.length === 1) {
+                return entero;
             }
 
             const decimales = partes.slice(1).join('').slice(0, 1);
-            return decimales ? `${partes[0]}.${decimales}` : partes[0];
+            return `${entero}.${decimales}`;
         }
 
         function validarCalificacionFormulario(prefix) {
@@ -2257,6 +2481,7 @@
             document.getElementById('edit-descripcion').value = descripcion;
             document.getElementById('edit-calificacion').value = calificacion;
             document.getElementById('edit-artista-show').value = artistaShow;
+            document.getElementById('edit-apto-discapacidad-cognitiva').checked = element.dataset.aptoDiscapacidadCognitiva === '1';
             document.getElementById('edit-portada').value = '';
             document.getElementById('edit-eliminar-portada').checked = false;
 

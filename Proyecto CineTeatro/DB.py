@@ -1,12 +1,37 @@
+import os
 import sqlite3
 import json
 import re
+import hashlib
+from pathlib import Path
 from datetime import datetime
 
 from django import forms
 from django.contrib.auth.hashers import check_password, make_password
 from django.core.validators import FileExtensionValidator
 from Horarios import obtener_horarios_disponibles
+
+VISITAS_DB_PATH = Path(__file__).resolve().parent / 'Visitas.db'
+IP_HASH_SALT = os.getenv('IP_HASH_SALT', 'c1n3t34tr0-s4lt').encode('utf-8')
+
+
+def _calcular_ip_hash(ip):
+    return hashlib.sha256(IP_HASH_SALT + str(ip or '').encode('utf-8')).hexdigest()
+
+
+def _mascarar_ip(ip):
+    ip_texto = str(ip or '').strip()
+    if not ip_texto:
+        return 'IP desconocida'
+
+    partes = ip_texto.split('.')
+    if len(partes) == 4 and all(p.isdigit() and 0 <= int(p) <= 255 for p in partes):
+        return '.'.join(partes[:3] + ['xxx'])
+
+    if len(ip_texto) > 16:
+        return f"{ip_texto[:10]}..."
+
+    return ip_texto
 
 
 _horarios_init = obtener_horarios_disponibles()
@@ -63,12 +88,13 @@ class PeliculaBaseForm(forms.Form):
     ]
 
     nombre = forms.CharField(max_length=120)
-    proveedor = forms.IntegerField(min_value=1)
+    proveedor = forms.CharField(max_length=120)
     generos = forms.CharField(max_length=120)
     clasificacion = forms.ChoiceField(choices=CLASIFICACION_MPA_CHOICES)
     duracion = forms.CharField(max_length=5)
     descripcion = forms.CharField(max_length=1500)
     calificacion = forms.FloatField(min_value=0.0, max_value=10.0)
+    apto_discapacidad_cognitiva = forms.BooleanField(required=False)
     fechas_emision = forms.CharField(max_length=1000, required=False)
     programacion_emision = forms.CharField(max_length=20000, required=False)
     portada = forms.FileField(
@@ -110,6 +136,8 @@ class PeliculaBaseForm(forms.Form):
 
     def clean_calificacion(self):
         valor_raw = str(self.data.get('calificacion', '')).strip()
+        if valor_raw.endswith('.'):
+            valor_raw = valor_raw[:-1]
         if not re.fullmatch(r"(?:10(?:\.0)?|[0-9](?:\.[0-9])?)", valor_raw):
             raise forms.ValidationError('La calificación debe estar entre 0.0 y 10.0 y usar solo un decimal.')
 
@@ -153,10 +181,205 @@ class PeliculaEditForm(PeliculaBaseForm):
 
 
 def obtener_conexion(row_factory=False):
-    conn = sqlite3.connect('Peliculas.db')
+    conn = sqlite3.connect('Peliculas.db', timeout=30, check_same_thread=False)
+    conn.execute('PRAGMA busy_timeout = 30000')
     if row_factory:
         conn.row_factory = sqlite3.Row
     return conn
+
+
+def obtener_conexion_visitas(row_factory=False):
+    conn = sqlite3.connect(str(VISITAS_DB_PATH), timeout=30, check_same_thread=False)
+    conn.execute('PRAGMA busy_timeout = 30000')
+    if row_factory:
+        conn.row_factory = sqlite3.Row
+    return conn
+
+
+_schema_visitas_inicializado = False
+
+
+def ensure_visitas_schema():
+    global _schema_visitas_inicializado
+    if _schema_visitas_inicializado:
+        return
+    _schema_visitas_inicializado = True
+    conn = obtener_conexion_visitas()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS VISITAS (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ip TEXT,
+            ip_hash TEXT,
+            ip_mask TEXT,
+            fecha TEXT NOT NULL,
+            periodo TEXT NOT NULL,
+            peliculas TEXT NOT NULL
+        )
+        """
+    )
+
+    cursor.execute('PRAGMA table_info(VISITAS)')
+    columnas = {fila[1] for fila in cursor.fetchall()}
+    if 'ip_hash' not in columnas:
+        cursor.execute('ALTER TABLE VISITAS ADD COLUMN ip_hash TEXT')
+    if 'ip_mask' not in columnas:
+        cursor.execute('ALTER TABLE VISITAS ADD COLUMN ip_mask TEXT')
+    if 'periodo' not in columnas:
+        cursor.execute('ALTER TABLE VISITAS ADD COLUMN periodo TEXT NOT NULL DEFAULT ""')
+
+    if 'ip' in columnas:
+        cursor.execute('SELECT id, ip, fecha FROM VISITAS WHERE ip_hash IS NULL OR ip_hash = "" OR periodo = ""')
+        for fila in cursor.fetchall():
+            registro_id, ip_val, fecha_val = fila
+            ip_hash = _calcular_ip_hash(ip_val)
+            ip_mask = _mascarar_ip(ip_val)
+            periodo = f"{fecha_val} 00" if fecha_val else '1970-01-01 00'
+            cursor.execute(
+                'UPDATE VISITAS SET ip_hash = ?, ip_mask = ?, periodo = ? WHERE id = ?',
+                (ip_hash, ip_mask, periodo, registro_id),
+            )
+
+    cursor.execute('DROP INDEX IF EXISTS idx_visitas_ip_fecha')
+    cursor.execute('DROP INDEX IF EXISTS idx_visitas_iphash_fecha')
+    cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_visitas_iphash_periodo ON VISITAS(ip_hash, periodo)")
+    conn.commit()
+    conn.close()
+
+
+def _serializar_peliculas(peliculas):
+    return json.dumps(sorted(dict.fromkeys(peliculas)), ensure_ascii=False)
+
+
+def _deserializar_peliculas(valor):
+    if not valor:
+        return []
+    try:
+        pelicula_lista = json.loads(valor)
+        if isinstance(pelicula_lista, list):
+            return [str(item) for item in pelicula_lista if item is not None]
+    except (json.JSONDecodeError, TypeError):
+        pass
+    return []
+
+
+def registrar_visita(ip, nombre_pelicula):
+    if not ip or not nombre_pelicula:
+        return
+
+    ensure_visitas_schema()
+    ahora = datetime.now()
+    fecha_actual = ahora.strftime('%Y-%m-%d')
+    periodo_actual = ahora.strftime('%Y-%m-%d %H')
+    ip_hash = _calcular_ip_hash(ip)
+    ip_mask = _mascarar_ip(ip)
+
+    conn = obtener_conexion_visitas()
+    cursor = conn.cursor()
+    cursor.execute(
+        'SELECT id, peliculas FROM VISITAS WHERE ip_hash = ? AND periodo = ?',
+        (ip_hash, periodo_actual),
+    )
+    fila = cursor.fetchone()
+
+    if fila:
+        peliculas = _deserializar_peliculas(fila[1])
+        if nombre_pelicula not in peliculas:
+            peliculas.append(nombre_pelicula)
+            cursor.execute(
+                'UPDATE VISITAS SET peliculas = ? WHERE id = ?',
+                (_serializar_peliculas(peliculas), fila[0]),
+            )
+    else:
+        peliculas = [nombre_pelicula]
+        try:
+            cursor.execute(
+                'INSERT INTO VISITAS (ip, ip_hash, ip_mask, fecha, periodo, peliculas) VALUES (?, ?, ?, ?, ?, ?)',
+                (ip, ip_hash, ip_mask, fecha_actual, periodo_actual, _serializar_peliculas(peliculas)),
+            )
+        except sqlite3.IntegrityError:
+            cursor.execute(
+                'SELECT id, peliculas FROM VISITAS WHERE ip_hash = ? AND fecha = ?',
+                (ip_hash, fecha_actual),
+            )
+            fila_fecha = cursor.fetchone()
+            if fila_fecha:
+                peliculas = _deserializar_peliculas(fila_fecha[1])
+                if nombre_pelicula not in peliculas:
+                    peliculas.append(nombre_pelicula)
+                    cursor.execute(
+                        'UPDATE VISITAS SET peliculas = ?, periodo = ? WHERE id = ?',
+                        (_serializar_peliculas(peliculas), periodo_actual, fila_fecha[0]),
+                    )
+            else:
+                raise
+
+    conn.commit()
+    conn.close()
+
+
+def obtener_visitas_historicas():
+    ensure_visitas_schema()
+    conn = obtener_conexion_visitas(row_factory=True)
+    cursor = conn.cursor()
+    cursor.execute('SELECT ip_mask, fecha, peliculas FROM VISITAS ORDER BY fecha DESC, periodo DESC')
+    filas = cursor.fetchall()
+    conn.close()
+
+    visitas = []
+    for fila in filas:
+        peliculas = _deserializar_peliculas(fila['peliculas'])
+        visitas.append(
+            {
+                'ip': fila['ip_mask'],
+                'fecha': datetime.strptime(fila['fecha'], '%Y-%m-%d').strftime('%d/%m/%Y'),
+                'peliculas': peliculas,
+            }
+        )
+
+    return visitas
+
+
+def obtener_estadisticas_visitas():
+    ensure_visitas_schema()
+    conn = obtener_conexion_visitas(row_factory=True)
+    cursor = conn.cursor()
+    cursor.execute('SELECT ip_hash, fecha FROM VISITAS ORDER BY fecha DESC, periodo DESC')
+    filas = cursor.fetchall()
+    conn.close()
+
+    ips_unicas = set()
+    ips_por_dia = {}
+    for fila in filas:
+        ip_hash = fila['ip_hash']
+        fecha = datetime.strptime(fila['fecha'], '%Y-%m-%d').strftime('%d/%m/%Y')
+        if ip_hash:
+            ips_unicas.add(ip_hash)
+            fecha_set = ips_por_dia.setdefault(fecha, set())
+            fecha_set.add(ip_hash)
+
+    visitas_por_dia = [
+        {'fecha': fecha, 'cantidad': len(ip_hashes)}
+        for fecha, ip_hashes in sorted(
+            ips_por_dia.items(),
+            key=lambda item: datetime.strptime(item[0], '%d/%m/%Y'),
+        )
+    ]
+
+    return {
+        'ips_unicas': len(ips_unicas),
+        'visitas_por_dia': visitas_por_dia,
+    }
+
+
+def obtener_ip_desde_request(request):
+    ip = request.META.get('HTTP_X_FORWARDED_FOR')
+    if ip:
+        ip = ip.split(',')[0].strip()
+    if not ip:
+        ip = request.META.get('REMOTE_ADDR')
+    return ip or '0.0.0.0'
 
 
 _schema_admins_inicializado = False
@@ -395,28 +618,28 @@ _UNION_TODOS_ESPECTACULOS = """
     SELECT
         t.id AS rowid, p.Nombre, p.Proveedor, p.Generos, p.Clasificacion, p.Duracion,
         p.Descripcion, p.Calificacion, p.Fecha_estreno, p.Fechas_emision,
-        p.Programacion_emision, p.Portada, p.Portada_nombre,
+        p.Programacion_emision, p.Portada, p.Portada_nombre, COALESCE(p.apto_discapacidad_cognitiva, 0) AS apto_discapacidad_cognitiva,
         NULL AS artista_show, NULL AS ambientacion_teatro, 'pelicula' AS tipo_espectaculo
     FROM Tipos_de_espectaculos t JOIN PELICULAS p ON t.tipo_id = p.rowid WHERE t.tipo = 'pelicula'
     UNION ALL
     SELECT
         t.id AS rowid, s.Nombre, 0, s.tema, s.Clasificacion, s.Duracion,
         s.Descripcion, 0.0, s.Fecha_estreno, s.Fechas_emision,
-        s.Programacion_emision, s.Portada, s.Portada_nombre,
+        s.Programacion_emision, s.Portada, s.Portada_nombre, COALESCE(s.apto_discapacidad_cognitiva, 0) AS apto_discapacidad_cognitiva,
         s.artista_show, NULL, 'show'
     FROM Tipos_de_espectaculos t JOIN SHOWS s ON t.tipo_id = s.rowid WHERE t.tipo = 'show'
     UNION ALL
     SELECT
         t.id AS rowid, te.Nombre, 0, te.tema, te.Clasificacion, te.Duracion,
         te.Descripcion, 0.0, te.Fecha_estreno, te.Fechas_emision,
-        te.Programacion_emision, te.Portada, te.Portada_nombre,
+        te.Programacion_emision, te.Portada, te.Portada_nombre, COALESCE(te.apto_discapacidad_cognitiva, 0) AS apto_discapacidad_cognitiva,
         te.artista_show, te.ambientacion_teatro, 'teatro'
     FROM Tipos_de_espectaculos t JOIN TEATRO te ON t.tipo_id = te.rowid WHERE t.tipo = 'teatro'
     UNION ALL
     SELECT
         t.id AS rowid, e.Nombre, 0, e.tema, 'G', e.Duracion,
         e.Descripcion, 0.0, e.Fecha_estreno, e.Fechas_emision,
-        e.Programacion_emision, e.Portada, e.Portada_nombre,
+        e.Programacion_emision, e.Portada, e.Portada_nombre, COALESCE(e.apto_discapacidad_cognitiva, 0) AS apto_discapacidad_cognitiva,
         e.artista_show, NULL, 'exposicion'
     FROM Tipos_de_espectaculos t JOIN EXPOSICIONES e ON t.tipo_id = e.rowid WHERE t.tipo = 'exposicion'
 """
@@ -523,6 +746,9 @@ def ensure_fechas_emision_schema():
     if 'Programacion_emision' not in columnas:
         cursor.execute("ALTER TABLE PELICULAS ADD COLUMN Programacion_emision TEXT")
         columnas.append('Programacion_emision')
+    if 'apto_discapacidad_cognitiva' not in columnas:
+        cursor.execute("ALTER TABLE PELICULAS ADD COLUMN apto_discapacidad_cognitiva INTEGER NOT NULL DEFAULT 0")
+        columnas.append('apto_discapacidad_cognitiva')
 
     cursor.execute(
         """
@@ -607,7 +833,8 @@ def ensure_espectaculos_schema():
             Fechas_emision TEXT,
             Programacion_emision TEXT,
             Portada BLOB,
-            Portada_nombre TEXT
+            Portada_nombre TEXT,
+            apto_discapacidad_cognitiva INTEGER NOT NULL DEFAULT 0
         )
         """
     )
@@ -627,7 +854,8 @@ def ensure_espectaculos_schema():
             Fechas_emision TEXT,
             Programacion_emision TEXT,
             Portada BLOB,
-            Portada_nombre TEXT
+            Portada_nombre TEXT,
+            apto_discapacidad_cognitiva INTEGER NOT NULL DEFAULT 0
         )
         """
     )
@@ -645,10 +873,17 @@ def ensure_espectaculos_schema():
             Fechas_emision TEXT,
             Programacion_emision TEXT,
             Portada BLOB,
-            Portada_nombre TEXT
+            Portada_nombre TEXT,
+            apto_discapacidad_cognitiva INTEGER NOT NULL DEFAULT 0
         )
         """
     )
+
+    for tabla in ('PELICULAS', 'SHOWS', 'TEATRO', 'EXPOSICIONES'):
+        cursor.execute(f"PRAGMA table_info({tabla})")
+        columnas_tabla = [col[1] for col in cursor.fetchall()]
+        if 'apto_discapacidad_cognitiva' not in columnas_tabla:
+            cursor.execute(f"ALTER TABLE {tabla} ADD COLUMN apto_discapacidad_cognitiva INTEGER NOT NULL DEFAULT 0")
 
     # Migración desde tabla única PELICULAS al esquema multi-tabla
     cursor.execute("SELECT COUNT(*) FROM Tipos_de_espectaculos")
@@ -804,6 +1039,7 @@ def obtener_peliculas_para_main(limit=10, rowid=None):
     ensure_espectaculos_schema()
     conn = obtener_conexion(row_factory=True)
     cursor = conn.cursor()
+
     if rowid is not None:
         cursor.execute(
             f'SELECT * FROM ({_UNION_TODOS_ESPECTACULOS}) WHERE rowid = ?',
@@ -814,6 +1050,7 @@ def obtener_peliculas_para_main(limit=10, rowid=None):
             f'SELECT * FROM ({_UNION_TODOS_ESPECTACULOS}) LIMIT ?',
             (limit,),
         )
+
     peliculas = list(cursor.fetchall())
     conn.close()
 
@@ -966,6 +1203,11 @@ def inicializar_db():
             conn.commit()
             print("Columna 'Portada_nombre' añadida a la tabla PELICULAS.")
 
+        if 'apto_discapacidad_cognitiva' not in nombres_columnas:
+            cursor.execute("ALTER TABLE PELICULAS ADD COLUMN apto_discapacidad_cognitiva INTEGER NOT NULL DEFAULT 0")
+            conn.commit()
+            print("Columna 'apto_discapacidad_cognitiva' añadida a la tabla PELICULAS.")
+
         # Ejecutar una consulta para seleccionar todos los registros de la tabla PELICULAS
         cursor.execute("SELECT * FROM PELICULAS")
         peliculas = cursor.fetchall()
@@ -1009,20 +1251,20 @@ def inicializar_db():
 
             # 10 películas de 2026 con fecha de estreno
             peliculas_a_insertar = [
-                ('El Último Viaje', 1, 'Ciencia Ficción', 'PG', '02:00', 'Una aventura épica en el espacio.', 8.5, '2026-03-15', '2026-03-15', None, None),
-                ('Sombras del Pasado', 2, 'Drama', 'PG-13', '01:35', 'Una historia de redención y amor.', 7.8, '2026-05-20', '2026-05-20', None, None),
-                ('Risas Inesperadas', 3, 'Comedia', 'G', '01:25', 'Una comedia ligera sobre malentendidos.', 6.9, '2026-07-10', '2026-07-10', None, None),
-                ('Guerra de Titanes', 1, 'Acción', 'NC-17', '02:20', 'Batallas épicas entre dioses y humanos.', 9.0, '2026-09-05', '2026-09-05', None, None),
-                ('Misterio en la Niebla', 4, 'Thriller', 'R', '01:50', 'Un detective resuelve un crimen en una ciudad brumosa.', 8.2, '2026-11-12', '2026-11-12', None, None),
-                ('Amor Eterno', 2, 'Romance', 'PG', '01:40', 'Una historia de amor que trasciende el tiempo.', 7.5, '2026-02-28', '2026-02-28', None, None),
-                ('Exploradores del Abismo', 1, 'Aventura', 'PG', '02:05', 'Una expedición al fondo del océano.', 8.7, '2026-04-18', '2026-04-18', None, None),
-                ('La Rebelión', 3, 'Fantasía', 'PG-13', '02:10', 'Una joven lucha contra un régimen opresivo.', 8.0, '2026-06-22', '2026-06-22', None, None),
-                ('Código Secreto', 4, 'Suspenso', 'R', '01:45', 'Espías en una misión de alto riesgo.', 7.9, '2026-08-30', '2026-08-30', None, None),
-                ('Sueños Perdidos', 2, 'Drama', 'PG-13', '01:30', 'Reflexiones sobre la vida y las decisiones.', 8.1, '2026-10-14', '2026-10-14', None, None),
+                ('El Último Viaje', 1, 'Ciencia Ficción', 'PG', '02:00', 'Una aventura épica en el espacio.', 8.5, '2026-03-15', '2026-03-15', None, None, 0),
+                ('Sombras del Pasado', 2, 'Drama', 'PG-13', '01:35', 'Una historia de redención y amor.', 7.8, '2026-05-20', '2026-05-20', None, None, 0),
+                ('Risas Inesperadas', 3, 'Comedia', 'G', '01:25', 'Una comedia ligera sobre malentendidos.', 6.9, '2026-07-10', '2026-07-10', None, None, 0),
+                ('Guerra de Titanes', 1, 'Acción', 'NC-17', '02:20', 'Batallas épicas entre dioses y humanos.', 9.0, '2026-09-05', '2026-09-05', None, None, 0),
+                ('Misterio en la Niebla', 4, 'Thriller', 'R', '01:50', 'Un detective resuelve un crimen en una ciudad brumosa.', 8.2, '2026-11-12', '2026-11-12', None, None, 0),
+                ('Amor Eterno', 2, 'Romance', 'PG', '01:40', 'Una historia de amor que trasciende el tiempo.', 7.5, '2026-02-28', '2026-02-28', None, None, 0),
+                ('Exploradores del Abismo', 1, 'Aventura', 'PG', '02:05', 'Una expedición al fondo del océano.', 8.7, '2026-04-18', '2026-04-18', None, None, 0),
+                ('La Rebelión', 3, 'Fantasía', 'PG-13', '02:10', 'Una joven lucha contra un régimen opresivo.', 8.0, '2026-06-22', '2026-06-22', None, None, 0),
+                ('Código Secreto', 4, 'Suspenso', 'R', '01:45', 'Espías en una misión de alto riesgo.', 7.9, '2026-08-30', '2026-08-30', None, None, 0),
+                ('Sueños Perdidos', 2, 'Drama', 'PG-13', '01:30', 'Reflexiones sobre la vida y las decisiones.', 8.1, '2026-10-14', '2026-10-14', None, None, 0),
             ]
 
             cursor.executemany(
-                "INSERT INTO PELICULAS (Nombre, Proveedor, Generos, Clasificacion, Duracion, Descripcion, Calificacion, Fecha_estreno, Fechas_emision, Portada, Portada_nombre) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO PELICULAS (Nombre, Proveedor, Generos, Clasificacion, Duracion, Descripcion, Calificacion, Fecha_estreno, Fechas_emision, Portada, Portada_nombre, apto_discapacidad_cognitiva) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 peliculas_a_insertar,
             )
             conn.commit()
@@ -1063,6 +1305,7 @@ class ShowCreateForm(forms.Form):
     clasificacion = forms.ChoiceField(choices=CLASIFICACION_MPA_CHOICES)
     duracion = forms.CharField(max_length=5)
     descripcion = forms.CharField(max_length=1500)
+    apto_discapacidad_cognitiva = forms.BooleanField(required=False)
     fechas_emision = forms.CharField(max_length=1000, required=False)
     programacion_emision = forms.CharField(max_length=20000, required=False)
     portada = forms.FileField(
@@ -1128,6 +1371,7 @@ class TeatroCreateForm(forms.Form):
     clasificacion = forms.ChoiceField(choices=CLASIFICACION_MPA_CHOICES)
     duracion = forms.CharField(max_length=5)
     descripcion = forms.CharField(max_length=1500)
+    apto_discapacidad_cognitiva = forms.BooleanField(required=False)
     fechas_emision = forms.CharField(max_length=1000, required=False)
     programacion_emision = forms.CharField(max_length=20000, required=False)
     portada = forms.FileField(
@@ -1183,6 +1427,7 @@ class ExposicionCreateForm(forms.Form):
     artista_show = forms.CharField(max_length=200, required=False, label='Bajo dirección de')
     duracion = forms.CharField(max_length=5)
     descripcion = forms.CharField(max_length=1500)
+    apto_discapacidad_cognitiva = forms.BooleanField(required=False)
     fechas_emision = forms.CharField(max_length=1000, required=False)
     programacion_emision = forms.CharField(max_length=20000, required=False)
     portada = forms.FileField(
